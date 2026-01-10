@@ -54,50 +54,19 @@ python cli.py snapshot
 python cli.py click-ref e3
 ```
 
-### Nix Overlay
+### Nix (flake)
 
-For Nix/NixOS users, here's an overlay that wires everything up with nixpkgs Playwright (no runtime browser downloads):
+No overlays required. The flake exposes the CLI, daemon, and MCP server:
 
-```nix
-# overlays/dev-browser-mcp.nix
-self: super:
-let
-  python = super.python3.withPackages (ps: [ ps.playwright ]);
-  src = super.fetchFromGitHub {
-    owner = "joshp123";
-    repo = "dev-browser-mcp";
-    rev = "main";  # or pin to a commit
-    sha256 = "";   # nix will tell you
-  };
-in
-{
-  dev-browser-mcp-server = super.writeShellScriptBin "dev-browser-mcp-server" ''
-    set -euo pipefail
-    export PLAYWRIGHT_BROWSERS_PATH="${super.playwright-driver.browsers}"
-    exec ${python}/bin/python -u ${src}/server.py "$@"
-  '';
-
-  dev-browser-daemon = super.writeShellScriptBin "dev-browser-daemon" ''
-    set -euo pipefail
-    export PLAYWRIGHT_BROWSERS_PATH="${super.playwright-driver.browsers}"
-    exec ${python}/bin/python -u ${src}/daemon.py "$@"
-  '';
-
-  dev-browser = super.writeShellScriptBin "dev-browser" ''
-    set -euo pipefail
-    export PLAYWRIGHT_BROWSERS_PATH="${super.playwright-driver.browsers}"
-    exec ${python}/bin/python -u ${src}/cli.py "$@"
-  '';
-}
+```bash
+nix run github:joshp123/dev-browser-mcp#dev-browser -- goto https://example.com
+nix run github:joshp123/dev-browser-mcp#dev-browser -- snapshot
 ```
 
-Then add to your packages:
+Install to your profile:
 
-```nix
-# packages.nix or similar
-environment.systemPackages = with pkgs; [
-  dev-browser
-];
+```bash
+nix profile install github:joshp123/dev-browser-mcp#dev-browser
 ```
 
 ## CLI Usage
