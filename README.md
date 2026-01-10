@@ -4,6 +4,30 @@ Token-light browser automation via Playwright. **CLI-first** design for LLM agen
 
 Uses ref-based interaction: get a compact accessibility snapshot, then click/fill by ref ID. Keeps context small.
 
+## Acknowledgments
+
+This project is a Python/CLI rewrite inspired by [SawyerHood/dev-browser](https://github.com/SawyerHood/dev-browser). The ARIA snapshot extraction logic is vendored from that project. Thanks to Sawyer Hood for the original work and the ref-based interaction model.
+
+**Consider using Sawyer's original** if you want:
+- Native Claude Skill integration (install via `.claude-plugin`)
+- TypeScript/Bun ecosystem
+- Tighter Claude Desktop integration
+
+This repo is for CLI-first workflows, Nix packaging, or if you prefer Python/Playwright.
+
+## Comparison
+
+| Feature | SawyerHood/dev-browser | dev-browser-mcp |
+|---------|------------------------|-----------------|
+| Language | TypeScript | Python |
+| Runtime | Bun + browser extension | Playwright (Python) |
+| Interface | Claude Skill plugin | CLI + daemon (+ MCP) |
+| Install | `.claude-plugin` | pip/Nix |
+| Best for | Claude Desktop users | CLI agents, Codex, Nix users |
+| Snapshot engine | ARIA (JS) | Same (vendored) |
+
+Both use the same ref-based interaction model. Pick based on your environment.
+
 ## Why CLI over MCP?
 
 MCP adds overhead: extra process, stdio piping, JSON-RPC framing, connection management. For browser automation, that's a lot of indirection when you can just call a CLI.
@@ -30,7 +54,51 @@ python cli.py snapshot
 python cli.py click-ref e3
 ```
 
-Or via Nix (see overlay example in source).
+### Nix Overlay
+
+For Nix/NixOS users, here's an overlay that wires everything up with nixpkgs Playwright (no runtime browser downloads):
+
+```nix
+# overlays/dev-browser-mcp.nix
+self: super:
+let
+  python = super.python3.withPackages (ps: [ ps.playwright ]);
+  src = super.fetchFromGitHub {
+    owner = "joshp123";
+    repo = "dev-browser-mcp";
+    rev = "main";  # or pin to a commit
+    sha256 = "";   # nix will tell you
+  };
+in
+{
+  dev-browser-mcp-server = super.writeShellScriptBin "dev-browser-mcp-server" ''
+    set -euo pipefail
+    export PLAYWRIGHT_BROWSERS_PATH="${super.playwright-driver.browsers}"
+    exec ${python}/bin/python -u ${src}/server.py "$@"
+  '';
+
+  dev-browser-daemon = super.writeShellScriptBin "dev-browser-daemon" ''
+    set -euo pipefail
+    export PLAYWRIGHT_BROWSERS_PATH="${super.playwright-driver.browsers}"
+    exec ${python}/bin/python -u ${src}/daemon.py "$@"
+  '';
+
+  dev-browser = super.writeShellScriptBin "dev-browser" ''
+    set -euo pipefail
+    export PLAYWRIGHT_BROWSERS_PATH="${super.playwright-driver.browsers}"
+    exec ${python}/bin/python -u ${src}/cli.py "$@"
+  '';
+}
+```
+
+Then add to your packages:
+
+```nix
+# packages.nix or similar
+environment.systemPackages = with pkgs; [
+  dev-browser
+];
+```
 
 ## CLI Usage
 
@@ -105,10 +173,6 @@ MCP tools (if you must):
 - `goto` / `snapshot` / `click_ref` / `fill_ref` / `press`
 - `screenshot` / `save_html`
 - `actions` - batch calls
-
-## Acknowledgments
-
-This project builds on [SawyerHood/dev-browser](https://github.com/SawyerHood/dev-browser), a Claude Skill for browser automation. The ARIA snapshot extraction logic is vendored from that project (MIT licensed). Thanks to Sawyer Hood for the original work.
 
 ## License
 
