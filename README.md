@@ -1,8 +1,20 @@
 # dev-browser-mcp
 
-Token-light browser automation via Playwright. CLI + MCP server + daemon.
+Token-light browser automation via Playwright. **CLI-first** design for LLM agent workflows.
 
-Uses ref-based interaction: get a compact accessibility snapshot, then click/fill by ref ID. Keeps context small for LLM workflows.
+Uses ref-based interaction: get a compact accessibility snapshot, then click/fill by ref ID. Keeps context small.
+
+## Why CLI over MCP?
+
+MCP adds overhead: extra process, stdio piping, JSON-RPC framing, connection management. For browser automation, that's a lot of indirection when you can just call a CLI.
+
+The CLI approach:
+- **Lower latency** - direct subprocess, no protocol overhead
+- **Easier debugging** - run commands yourself, see exactly what happens
+- **Simpler integration** - any agent that can shell out works
+- **Persistent sessions** - daemon keeps browser alive between calls
+
+The MCP server exists if you need it, but the CLI + daemon is the recommended path.
 
 ## Install
 
@@ -12,10 +24,10 @@ Requires Python 3.11+ and Playwright browsers.
 # Install playwright browsers (one-time)
 playwright install chromium
 
-# Run directly
-python server.py        # MCP stdio server
-python daemon.py        # HTTP daemon
+# Run CLI directly
 python cli.py goto https://example.com
+python cli.py snapshot
+python cli.py click-ref e3
 ```
 
 Or via Nix (see overlay example in source).
@@ -31,15 +43,68 @@ dev-browser screenshot
 dev-browser press Enter
 ```
 
-## MCP Tools
+The daemon starts automatically on first command and keeps the browser session alive.
 
-- `page` / `list_pages` / `close_page` - page management
-- `goto` - navigate to URL
+## Integration with Claude Code
+
+Add to your project's `CLAUDE.md`:
+
+```markdown
+## Browser Automation
+
+Use `dev-browser` CLI for browser tasks. Keeps context small via ref-based interaction.
+
+Workflow:
+1. `dev-browser goto <url>` - navigate
+2. `dev-browser snapshot` - get interactive elements as refs (e1, e2, etc.)
+3. `dev-browser click-ref <ref>` or `dev-browser fill-ref <ref> "text"` - interact
+4. `dev-browser screenshot` - capture state if needed
+
+Example:
+\`\`\`bash
+dev-browser goto https://github.com/login
+dev-browser snapshot
+# Output: e1: textbox "Username" | e2: textbox "Password" | e3: button "Sign in"
+dev-browser fill-ref e1 "myuser"
+dev-browser fill-ref e2 "mypass"
+dev-browser click-ref e3
+\`\`\`
+```
+
+## Integration with Codex
+
+Codex can use the CLI directly via its shell access. Example prompt:
+
+```
+Use dev-browser to navigate to example.com and find all links on the page.
+
+Available commands:
+- dev-browser goto <url>
+- dev-browser snapshot [--interactive-only / --no-interactive-only]
+- dev-browser click-ref <ref>
+- dev-browser fill-ref <ref> "text"
+- dev-browser screenshot
+- dev-browser press <key>
+```
+
+## Tools
+
+CLI commands (recommended):
+- `goto <url>` - navigate
 - `snapshot` - accessibility tree with refs
-- `click_ref` / `fill_ref` - interact via refs
-- `press` - keyboard input
-- `screenshot` / `save_html` - save artifacts
-- `actions` - batch multiple calls
+- `click-ref <ref>` - click element
+- `fill-ref <ref> "text"` - fill input
+- `press <key>` - keyboard input
+- `screenshot` - save screenshot
+- `save-html` - save page HTML
+- `list-pages` - show open pages
+- `status` / `start` / `stop` - daemon management
+
+MCP tools (if you must):
+- `page` / `list_pages` / `close_page`
+- `goto` / `snapshot` / `click_ref` / `fill_ref` / `press`
+- `screenshot` / `save_html`
+- `actions` - batch calls
 
 ## Acknowledgments
 
