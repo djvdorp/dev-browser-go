@@ -68,8 +68,9 @@ dev-browser list-pages                    # List open pages
 dev-browser snapshot                      # Get refs for interactive elements
 dev-browser snapshot --no-interactive-only  # Include all elements
 dev-browser snapshot --engine aria        # Use ARIA engine (better for complex UIs)
-dev-browser screenshot                    # Save screenshot, print path
+DEV_BROWSER_WINDOW_SIZE=7680x2160 dev-browser screenshot   # Full-page at ultrawide viewport
 dev-browser screenshot --annotate-refs    # Overlay ref labels on screenshot
+dev-browser screenshot --crop 0,0,2000,2000 # Crop region (clamped to 2000x2000)
 dev-browser save-html                     # Save page HTML
 ```
 
@@ -130,6 +131,8 @@ If something isn't working:
 ```bash
 dev-browser screenshot  # See current state
 dev-browser snapshot --no-interactive-only  # See all elements
+# Force viewport size (default 2500x1920, env overrides)
+DEV_BROWSER_WINDOW_SIZE=7680x2160 dev-browser snapshot
 ```
 
 ## Comparison with SawyerHood/dev-browser

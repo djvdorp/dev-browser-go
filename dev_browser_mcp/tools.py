@@ -43,6 +43,53 @@ def optional_int(args: dict[str, Any], key: str, default: int) -> int:
     raise ValueError(f"Expected non-negative integer '{key}'")
 
 
+def optional_crop(args: dict[str, Any]) -> Optional[dict[str, float]]:
+    raw = args.get("crop")
+    if raw is None:
+        return None
+
+    def _from_seq(seq: list[Any]) -> tuple[int, int, int, int]:
+        if len(seq) != 4:
+            raise ValueError("crop must have 4 items: x,y,width,height")
+        vals: list[int] = []
+        for item in seq:
+            if not isinstance(item, int):
+                raise ValueError("crop values must be integers")
+            if item < 0:
+                raise ValueError("crop values must be non-negative")
+            vals.append(int(item))
+        return vals[0], vals[1], vals[2], vals[3]
+
+    if isinstance(raw, str):
+        parts = [p.strip() for p in raw.split(",") if p.strip()]
+        if len(parts) != 4:
+            raise ValueError("crop must be x,y,width,height")
+        seq: list[int] = []
+        for part in parts:
+            if not part.isdigit():
+                raise ValueError("crop values must be integers")
+            seq.append(int(part))
+        x, y, w, h = _from_seq(seq)
+    elif isinstance(raw, dict):
+        try:
+            seq = [raw["x"], raw["y"], raw["width"], raw["height"]]
+        except Exception as exc:
+            raise ValueError("crop object must include x,y,width,height") from exc
+        x, y, w, h = _from_seq(seq)
+    elif isinstance(raw, (list, tuple)):
+        x, y, w, h = _from_seq(list(raw))
+    else:
+        raise ValueError("crop must be string, array, or object")
+
+    if w < 1 or h < 1:
+        raise ValueError("crop width/height must be positive")
+    max_wh = 2000
+    w = min(w, max_wh)
+    h = min(h, max_wh)
+
+    return {"x": float(x), "y": float(y), "width": float(w), "height": float(h)}
+
+
 def page_name(args: dict[str, Any]) -> str:
     name = args.get("page", "main")
     if not isinstance(name, str) or not name:
@@ -139,9 +186,14 @@ def run_tool(manager: BrowserManager, tool_name: str, args: dict[str, Any]) -> d
         name = page_name(args)
         path_arg = optional_str(args, "path")
         full_page = optional_bool(args, "full_page", True)
+        crop = optional_crop(args)
         path = manager.artifact_path(path_arg=path_arg, default_name=f"screenshot-{now_ms()}.png")
         page = manager.get_page(name)
-        page.screenshot(path=str(path), full_page=full_page)
+        options: dict[str, Any] = {"path": str(path), "full_page": full_page}
+        if crop is not None:
+            options["clip"] = crop
+            options["full_page"] = False
+        page.screenshot(**options)
         return {"page": name, "path": str(path)}
 
     if tool_name == "save_html":

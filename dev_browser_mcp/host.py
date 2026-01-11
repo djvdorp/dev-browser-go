@@ -3,9 +3,9 @@ import time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
-from .chromium_flags import chromium_launch_args
+from .chromium_flags import DEFAULT_WINDOW_SIZE, chromium_launch_args, window_size_from_env
 from .paths import platform_state_dir
 from .snapshot_base_script import get_base_script
 
@@ -81,12 +81,20 @@ class BrowserHost:
         self._user_data_dir.mkdir(parents=True, exist_ok=True)
 
         self._playwright = sync_playwright().start()
+        context_kwargs: dict[str, Any] = {}
+        window_size = window_size_from_env(default=DEFAULT_WINDOW_SIZE)
+        if window_size is not None:
+            width, height = window_size
+            context_kwargs["viewport"] = {"width": width, "height": height}
+            context_kwargs["screen"] = {"width": width, "height": height}
+
         self._context = self._playwright.chromium.launch_persistent_context(
             user_data_dir=str(self._user_data_dir),
             headless=self.headless,
             ignore_https_errors=True,
             accept_downloads=True,
             args=chromium_launch_args(cdp_port=self.cdp_port),
+            **context_kwargs,
         )
         self._context.set_default_timeout(15_000)
         self._context.add_init_script(get_base_script())

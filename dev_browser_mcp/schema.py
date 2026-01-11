@@ -92,6 +92,11 @@ TOOLS: list[dict[str, Any]] = [
                 "page": {"type": "string"},
                 "path": {"type": "string", "description": "Optional relative path under the artifact dir."},
                 "full_page": {"type": "boolean", "default": True},
+                "annotate_refs": {"type": "boolean", "default": False, "description": "Overlay [ref=eN] labels before capture."},
+                "crop": {
+                    "type": "string",
+                    "description": "Optional crop x,y,width,height (clamped to 2000x2000). If set, overrides full_page.",
+                },
             },
         },
     },
