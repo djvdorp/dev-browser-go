@@ -152,12 +152,17 @@ def run_call(page: "Page", name: str, args: dict[str, Any], *, artifact_dir: Pat
         path_arg = _optional_str(args, "path")
         full_page = _optional_bool(args, "full_page", True)
         annotate_refs = _optional_bool(args, "annotate_refs", False)
+        crop = _optional_crop(args)
         path = safe_artifact_path(artifact_dir, path_arg, f"screenshot-{now_ms()}.png")
+        options: dict[str, Any] = {"path": str(path), "full_page": full_page}
+        if crop is not None:
+            options["clip"] = crop
+            options["full_page"] = False
         if annotate_refs:
             draw_ref_overlay(page)
             page.wait_for_timeout(50)
         try:
-            page.screenshot(path=str(path), full_page=full_page)
+            page.screenshot(**options)
         finally:
             if annotate_refs:
                 try:
@@ -227,6 +232,53 @@ def _optional_int(args: dict[str, Any], key: str, default: int) -> int:
     if isinstance(value, int) and value >= 0:
         return value
     raise ValueError(f"Expected non-negative integer '{key}'")
+
+
+def _optional_crop(args: dict[str, Any]) -> Optional[dict[str, float]]:
+    raw = args.get("crop")
+    if raw is None:
+        return None
+
+    def _from_seq(seq: list[Any]) -> tuple[int, int, int, int]:
+        if len(seq) != 4:
+            raise ValueError("crop must have 4 items: x,y,width,height")
+        vals: list[int] = []
+        for idx, item in enumerate(seq):
+            if not isinstance(item, int):
+                raise ValueError("crop values must be integers")
+            if item < 0:
+                raise ValueError("crop values must be non-negative")
+            vals.append(int(item))
+        return vals[0], vals[1], vals[2], vals[3]
+
+    if isinstance(raw, str):
+        parts = [p.strip() for p in raw.split(",") if p.strip()]
+        if len(parts) != 4:
+            raise ValueError("--crop must be x,y,width,height")
+        seq: list[int] = []
+        for part in parts:
+            if not part.isdigit():
+                raise ValueError("crop values must be integers")
+            seq.append(int(part))
+        x, y, w, h = _from_seq(seq)
+    elif isinstance(raw, dict):
+        try:
+            seq = [raw["x"], raw["y"], raw["width"], raw["height"]]
+        except Exception as exc:
+            raise ValueError("crop object must include x,y,width,height") from exc
+        x, y, w, h = _from_seq(seq)
+    elif isinstance(raw, (list, tuple)):
+        x, y, w, h = _from_seq(list(raw))
+    else:
+        raise ValueError("crop must be string, array, or object")
+
+    if w < 1 or h < 1:
+        raise ValueError("crop width/height must be positive")
+    max_wh = 2000
+    w = min(w, max_wh)
+    h = min(h, max_wh)
+
+    return {"x": float(x), "y": float(y), "width": float(w), "height": float(h)}
 
 
 _PERF_LOAD_STATE_JS = r"""

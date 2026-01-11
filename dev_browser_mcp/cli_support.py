@@ -72,7 +72,20 @@ def is_daemon_healthy(profile: str) -> bool:
 
 
 def daemon_script_path() -> Path:
-    return (Path(__file__).resolve().parent.parent / "daemon.py").resolve()
+    env_path = os.environ.get("DEV_BROWSER_DAEMON_PATH")
+    if env_path:
+        path = Path(env_path).expanduser().resolve()
+        if path.exists():
+            return path
+
+    here = Path(__file__).resolve()
+    candidates = [here.parent.parent / "daemon.py"]
+    for parent in here.parents:
+        candidates.append(parent / "libexec/dev-browser-mcp/daemon.py")
+    for cand in candidates:
+        if cand.exists():
+            return cand
+    raise RuntimeError("dev-browser daemon script not found; reinstall the package")
 
 
 def start_daemon(profile: str, headless: bool) -> None:

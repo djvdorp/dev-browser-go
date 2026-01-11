@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, TYPE_CHECKING
 
-from .chromium_flags import chromium_launch_args
+from .chromium_flags import DEFAULT_WINDOW_SIZE, chromium_launch_args, window_size_from_env
 from .paths import platform_cache_dir, platform_state_dir, safe_artifact_path
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -171,12 +171,20 @@ class BrowserManager:
         self._user_data_dir.mkdir(parents=True, exist_ok=True)
 
         self._playwright = sync_playwright().start()
+        context_kwargs: dict[str, Any] = {}
+        window_size = window_size_from_env(default=DEFAULT_WINDOW_SIZE)
+        if window_size is not None:
+            width, height = window_size
+            context_kwargs["viewport"] = {"width": width, "height": height}
+            context_kwargs["screen"] = {"width": width, "height": height}
+
         self._context = self._playwright.chromium.launch_persistent_context(
             user_data_dir=str(self._user_data_dir),
             headless=self._headless,
             ignore_https_errors=True,
             accept_downloads=True,
             args=chromium_launch_args(),
+            **context_kwargs,
         )
         self._context.set_default_timeout(15_000)
 

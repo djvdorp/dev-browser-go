@@ -2,7 +2,7 @@
 
 ## SawyerHood/dev-browser
 
-Portions of `tools/dev-browser-mcp/dev_browser_mcp/vendor/dev_browser_snapshot/*` are vendored from SawyerHood/dev-browser (MIT License).
+Portions of `dev_browser_mcp/vendor/dev_browser_snapshot/*` are vendored from SawyerHood/dev-browser (MIT License).
 
 MIT License
 
