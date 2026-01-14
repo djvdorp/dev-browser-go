@@ -26,7 +26,7 @@ func resolveDeviceDescriptor(pw *playwright.Playwright, name string) (*playwrigh
 	// Try case-insensitive match
 	lowerName := strings.ToLower(deviceName)
 	for devName, devDesc := range pw.Devices {
-		if strings.ToLower(devName) == lowerName {
+		if strings.ToLower(devName) == lowerName && devDesc != nil {
 			return devDesc, nil
 		}
 	}
