@@ -24,6 +24,7 @@ type globals struct {
 	output   string
 	outPath  string
 	window   *devbrowser.WindowSize
+	device   string
 }
 
 func main() {
@@ -84,8 +85,20 @@ func run(args []string) error {
 		fmt.Printf("not running profile=%s\n", g.profile)
 		return nil
 
+	case "devices":
+		devices, err := devbrowser.ListDeviceNames()
+		if err != nil {
+			return err
+		}
+		out, err := devbrowser.WriteOutput(g.profile, g.output, map[string]any{"devices": devices}, g.outPath)
+		if err != nil {
+			return err
+		}
+		fmt.Println(out)
+		return nil
+
 	case "start":
-		if err := devbrowser.StartDaemon(g.profile, g.headless, g.window); err != nil {
+		if err := devbrowser.StartDaemon(g.profile, g.headless, g.window, g.device); err != nil {
 			return err
 		}
 		fmt.Printf("started profile=%s url=%s\n", g.profile, devbrowser.DaemonBaseURL(g.profile))
@@ -104,7 +117,7 @@ func run(args []string) error {
 		return nil
 
 	case "list-pages":
-		if err := devbrowser.StartDaemon(g.profile, g.headless, g.window); err != nil {
+		if err := devbrowser.StartDaemon(g.profile, g.headless, g.window, g.device); err != nil {
 			return err
 		}
 		base := devbrowser.DaemonBaseURL(g.profile)
@@ -205,7 +218,7 @@ func run(args []string) error {
 		if *limit < 0 {
 			return errors.New("--limit must be >= 0")
 		}
-		if err := devbrowser.StartDaemon(g.profile, g.headless, g.window); err != nil {
+		if err := devbrowser.StartDaemon(g.profile, g.headless, g.window, g.device); err != nil {
 			return err
 		}
 		base := devbrowser.DaemonBaseURL(g.profile)
@@ -396,7 +409,7 @@ func run(args []string) error {
 		if err := json.Unmarshal([]byte(raw), &calls); err != nil {
 			return errors.New("invalid JSON for --calls/stdin")
 		}
-		ws, tid, err := devbrowser.EnsurePage(g.profile, g.headless, *pageName, g.window)
+		ws, tid, err := devbrowser.EnsurePage(g.profile, g.headless, *pageName, g.window, g.device)
 		if err != nil {
 			return err
 		}
@@ -451,7 +464,7 @@ func run(args []string) error {
 			return errors.New("page name required")
 		}
 		name := fs.Arg(0)
-		if err := devbrowser.StartDaemon(g.profile, g.headless, g.window); err != nil {
+		if err := devbrowser.StartDaemon(g.profile, g.headless, g.window, g.device); err != nil {
 			return err
 		}
 		base := devbrowser.DaemonBaseURL(g.profile)
@@ -479,7 +492,7 @@ func run(args []string) error {
 }
 
 func runWithPage(g globals, pageName string, tool string, args map[string]interface{}) error {
-	ws, tid, err := devbrowser.EnsurePage(g.profile, g.headless, pageName, g.window)
+	ws, tid, err := devbrowser.EnsurePage(g.profile, g.headless, pageName, g.window, g.device)
 	if err != nil {
 		return err
 	}
@@ -512,9 +525,10 @@ func runDaemon(args []string) error {
 		headless = envTruthy("HEADLESS")
 	}
 	stateFile := getenvDefault("DEV_BROWSER_STATE_FILE", "")
-	windowSizeRaw := ""
+	windowSizeRaw := strings.TrimSpace(os.Getenv("DEV_BROWSER_WINDOW_SIZE"))
 	windowScale := 1.0
 	windowScaleSet := false
+	deviceName := ""
 
 	fs := flag.NewFlagSet("dev-browser-go-daemon", flag.ContinueOnError)
 	fs.StringVar(&profile, "profile", profile, "Profile name")
@@ -525,6 +539,7 @@ func runDaemon(args []string) error {
 	fs.StringVar(&stateFile, "state-file", stateFile, "State file")
 	fs.StringVar(&windowSizeRaw, "window-size", windowSizeRaw, "Viewport WxH")
 	fs.Float64Var(&windowScale, "window-scale", windowScale, "Viewport scale (e.g. 1, 0.75, 0.5)")
+	fs.StringVar(&deviceName, "device", deviceName, "Device profile name")
 	fs.Usage = func() { printDaemonUsage() }
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -533,24 +548,43 @@ func runDaemon(args []string) error {
 		return err
 	}
 
-	if fs.Lookup("window-scale").Value.String() != "1" {
-		windowScaleSet = true
+	windowSizeSet := false
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "window-size":
+			windowSizeSet = true
+		case "window-scale":
+			windowScaleSet = true
+		}
+	})
+
+	if windowScaleSet && !windowSizeSet {
+		windowSizeRaw = ""
 	}
-	if windowSizeRaw != "" && windowScaleSet {
+	if windowSizeSet && windowScaleSet {
 		return fmt.Errorf("use either --window-size or --window-scale")
 	}
 
-	scaleVal := windowScale
-	if !windowScaleSet {
-		scaleVal = 1
+	deviceName = strings.TrimSpace(deviceName)
+	if deviceName != "" && (windowSizeSet || windowScaleSet) {
+		return fmt.Errorf("use either --device or --window-size/--window-scale")
 	}
-	window, err := devbrowser.ResolveWindowSize(windowSizeRaw, scaleVal)
-	if err != nil {
-		return err
+
+	var window *devbrowser.WindowSize
+	if deviceName == "" {
+		scaleVal := windowScale
+		if !windowScaleSet {
+			scaleVal = 1
+		}
+		resolved, err := devbrowser.ResolveWindowSize(windowSizeRaw, scaleVal)
+		if err != nil {
+			return err
+		}
+		window = resolved
 	}
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
-	return devbrowser.ServeDaemon(devbrowser.DaemonOptions{Profile: profile, Host: host, Port: port, CDPPort: cdpPort, Headless: headless, Window: window, StateFile: stateFile, Logger: logger})
+	return devbrowser.ServeDaemon(devbrowser.DaemonOptions{Profile: profile, Host: host, Port: port, CDPPort: cdpPort, Headless: headless, Window: window, Device: deviceName, StateFile: stateFile, Logger: logger})
 }
 
 func parseGlobals(args []string) (globals, []string, error) {
@@ -567,9 +601,11 @@ func parseGlobals(args []string) (globals, []string, error) {
 
 	remaining := []string{}
 	i := 0
-	windowSizeRaw := ""
+	windowSizeRaw := strings.TrimSpace(os.Getenv("DEV_BROWSER_WINDOW_SIZE"))
+	windowSizeSet := false
 	windowScale := 1.0
 	windowScaleSet := false
+	deviceName := ""
 	for i < len(args) {
 		a := args[i]
 		switch a {
@@ -602,6 +638,7 @@ func parseGlobals(args []string) (globals, []string, error) {
 				return g, nil, errors.New("--window-size requires value")
 			}
 			windowSizeRaw = args[i+1]
+			windowSizeSet = true
 			i += 2
 		case "--window-scale":
 			if i+1 >= len(args) {
@@ -615,6 +652,15 @@ func parseGlobals(args []string) (globals, []string, error) {
 			windowScale = val
 			windowScaleSet = true
 			i += 2
+		case "--device":
+			if i+1 >= len(args) {
+				return g, nil, errors.New("--device requires value")
+			}
+			deviceName = strings.TrimSpace(args[i+1])
+			if deviceName == "" {
+				return g, nil, errors.New("--device requires a non-empty value")
+			}
+			i += 2
 		default:
 			remaining = args[i:]
 			i = len(args)
@@ -623,6 +669,22 @@ func parseGlobals(args []string) (globals, []string, error) {
 
 	if g.output != "summary" && g.output != "json" && g.output != "path" {
 		return g, nil, errors.New("--output must be summary|json|path")
+	}
+
+	if windowSizeSet && windowScaleSet {
+		return g, nil, errors.New("use either --window-size or --window-scale")
+	}
+	if windowScaleSet && !windowSizeSet {
+		windowSizeRaw = ""
+	}
+
+	if strings.TrimSpace(deviceName) != "" {
+		if windowSizeSet || windowScaleSet {
+			return g, nil, errors.New("--device cannot be combined with --window-size or --window-scale")
+		}
+		g.device = deviceName
+		g.window = nil
+		return g, remaining, nil
 	}
 
 	scaleVal := windowScale
@@ -676,6 +738,7 @@ Global flags:
   --headed                   Disable headless
   --window-size WxH          Viewport size (default 7680x2160 ultrawide)
   --window-scale SCALE       Viewport scale (1, 0.75, 0.5)
+  --device <name>            Device profile name (Playwright)
   --output summary|json|path Output format (default: summary)
   --out <path>               Output path when --output=path
   --help, -h                 Show help
@@ -696,6 +759,7 @@ Commands:
   wait [--page name] [--strategy] [--state] [--timeout-ms] [--min-wait-ms]
   list-pages
   close-page <name>
+  devices
   status | start | stop
 
 Run "dev-browser-go <command> --help" for command details.
@@ -732,6 +796,8 @@ func printCommandUsage(cmd string) {
 		fmt.Fprintf(os.Stdout, "Usage: dev-browser-go [globals] list-pages\n")
 	case "close-page":
 		fmt.Fprintf(os.Stdout, "Usage: dev-browser-go [globals] close-page <name>\n")
+	case "devices":
+		fmt.Fprintf(os.Stdout, "Usage: dev-browser-go [globals] devices\n")
 	case "status":
 		fmt.Fprintf(os.Stdout, "Usage: dev-browser-go [globals] status\n")
 	case "start":
@@ -747,6 +813,6 @@ func printDaemonUsage() {
 	fmt.Fprintf(os.Stdout, `dev-browser-go --daemon - run daemon only
 
 Usage:
-  dev-browser-go --daemon [--profile name] [--host addr] [--port port] [--cdp-port port] [--headless] [--state-file path] [--window-size WxH] [--window-scale SCALE]
+  dev-browser-go --daemon [--profile name] [--host addr] [--port port] [--cdp-port port] [--headless] [--state-file path] [--window-size WxH] [--window-scale SCALE] [--device name]
 `)
 }
