@@ -8,6 +8,8 @@ Uses ref-based interaction: get a compact accessibility snapshot, then click/fil
 
 Inspired by [SawyerHood/dev-browser](https://github.com/SawyerHood/dev-browser). ARIA snapshot extraction is vendored from that project. Thanks to Sawyer Hood for the original work and ref-based model.
 
+Thanks to Daniel van Dorp (@djvdorp) for early contributions (pip packaging, console logs) and legacy MCP cleanup work.
+
 ## Comparison
 
 | Feature | SawyerHood/dev-browser | dev-browser-go |
@@ -138,12 +140,12 @@ Use dev-browser-go to navigate to example.com and find all links on the page.
 
 Available commands:
 - dev-browser-go goto <url>
-- dev-browser-go snapshot [--interactive-only / --no-interactive-only]
+- dev-browser-go snapshot [--no-interactive-only] [--no-include-headings]
 - dev-browser-go click-ref <ref>
 - dev-browser-go fill-ref <ref> "text"
 - dev-browser-go screenshot
 - dev-browser-go press <key>
-- dev-browser-go console [--since <id>] [--limit <n>] [--levels <csv>]
+- dev-browser-go console [--since <id>] [--limit <n>] [--level <lvl> ...]
 ```
 
 ## Tools
@@ -154,9 +156,14 @@ Available commands:
 - `fill-ref <ref> "text"` - fill input
 - `press <key>` - keyboard input
 - `screenshot` - save screenshot
-- `console` - read page console logs (default levels: info,warning,error)
+- `bounds` - get element bounds (selector/ARIA)
+- `console` - read page console logs (default levels: info,warning,error; repeatable `--level`)
 - `save-html` - save page HTML
+- `wait` - wait for page state
 - `list-pages` - show open pages
+- `close-page <name>` - close named page
+- `call <tool>` - generic tool call with JSON args
+- `actions` - batch tool calls from JSON
 - `status` / `start` / `stop` - daemon management
 
 ## Versioning & Releases

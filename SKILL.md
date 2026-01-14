@@ -69,7 +69,7 @@ dev-browser-go close-page <name>             # Close named page
 ### Inspection
 ```bash
 dev-browser-go snapshot                      # Get refs for interactive elements
-dev-browser-go snapshot --interactive-only=false  # Include all elements
+dev-browser-go snapshot --no-interactive-only  # Include all elements
 dev-browser-go snapshot --engine aria        # Use ARIA engine (better for complex UIs)
 dev-browser-go screenshot                    # Full-page screenshot
 dev-browser-go screenshot --annotate-refs    # Overlay ref labels on screenshot
@@ -147,7 +147,7 @@ HEADLESS=0 dev-browser-go goto https://example.com
 ### Viewport Size
 Default is ultrawide 7680x2160. Adjust with flags:
 ```bash
-dev-browser-go goto https://example.com --window-scale 0.75  # 2880p ultrawide
+dev-browser-go goto https://example.com --window-scale 0.75  # 5760x1620 (0.75x default)
 # or
 dev-browser-go goto https://example.com --window-size 3840x1080
 ```
@@ -168,7 +168,7 @@ Tips:
 If something isn't working:
 ```bash
 dev-browser-go screenshot                    # See current state
-dev-browser-go snapshot --interactive-only=false  # See all elements
+dev-browser-go snapshot --no-interactive-only  # See all elements
 ```
 
 ## See Also
