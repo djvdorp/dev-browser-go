@@ -10,7 +10,7 @@ import (
 )
 
 func runWithPage(pageName, tool string, args map[string]interface{}) error {
-	ws, tid, err := devbrowser.EnsurePage(globalOpts.profile, globalOpts.headless, pageName, globalOpts.window)
+	ws, tid, err := devbrowser.EnsurePage(globalOpts.profile, globalOpts.headless, pageName, globalOpts.window, globalOpts.device)
 	if err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func runWithPage(pageName, tool string, args map[string]interface{}) error {
 }
 
 func startDaemonIfNeeded() (string, error) {
-	if err := devbrowser.StartDaemon(globalOpts.profile, globalOpts.headless, globalOpts.window); err != nil {
+	if err := devbrowser.StartDaemon(globalOpts.profile, globalOpts.headless, globalOpts.window, globalOpts.device); err != nil {
 		return "", err
 	}
 	base := devbrowser.DaemonBaseURL(globalOpts.profile)

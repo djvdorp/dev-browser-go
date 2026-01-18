@@ -33,7 +33,7 @@ func newActionsCmd() *cobra.Command {
 			if err := json.Unmarshal([]byte(raw), &calls); err != nil {
 				return errors.New("invalid JSON for --calls/stdin")
 			}
-			ws, tid, err := devbrowser.EnsurePage(globalOpts.profile, globalOpts.headless, pageName, globalOpts.window)
+			ws, tid, err := devbrowser.EnsurePage(globalOpts.profile, globalOpts.headless, pageName, globalOpts.window, globalOpts.device)
 			if err != nil {
 				return err
 			}

@@ -2,4 +2,4 @@ dist/
 build/
 .env
 *.log
-dev-browser-go
+/dev-browser-go

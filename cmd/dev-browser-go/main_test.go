@@ -1,42 +1,58 @@
 package main
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
-func TestParseGlobalsDeviceFlag(t *testing.T) {
-	g, rest, err := parseGlobals([]string{"--device", "Pixel 5", "status"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if g.device != "Pixel 5" {
-		t.Fatalf("expected device to be set, got %q", g.device)
-	}
-	if g.window != nil {
-		t.Fatalf("expected window to be nil with device")
-	}
-	if len(rest) != 1 || rest[0] != "status" {
-		t.Fatalf("unexpected remaining args: %#v", rest)
-	}
+func newTestCmd() *cobra.Command {
+	globalOpts = &globalOptions{}
+	cmd := &cobra.Command{Use: "test"}
+	bindGlobalFlags(cmd)
+	return cmd
 }
 
-func TestParseGlobalsDeviceConflictsWithWindow(t *testing.T) {
-	_, _, err := parseGlobals([]string{"--device", "Pixel 5", "--window-size", "100x200", "status"})
-	if err == nil {
-		t.Fatalf("expected error for device + window-size")
-	}
-}
-
-func TestParseGlobalsUsesEnvWindowSize(t *testing.T) {
+func TestApplyGlobalOptionsDeviceOverridesEnvWindow(t *testing.T) {
 	t.Setenv("DEV_BROWSER_WINDOW_SIZE", "320x640")
-	g, rest, err := parseGlobals([]string{"status"})
-	if err != nil {
+	cmd := newTestCmd()
+	if err := cmd.PersistentFlags().Set("device", "Pixel 5"); err != nil {
+		t.Fatalf("set device: %v", err)
+	}
+	if err := applyGlobalOptions(cmd); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if g.window == nil || g.window.Width != 320 || g.window.Height != 640 {
-		t.Fatalf("expected window from env, got %#v", g.window)
+	if globalOpts.device != "Pixel 5" {
+		t.Fatalf("expected device to be set, got %q", globalOpts.device)
 	}
-	if len(rest) != 1 || rest[0] != "status" {
-		t.Fatalf("unexpected remaining args: %#v", rest)
+	if globalOpts.window != nil {
+		t.Fatalf("expected window to be nil with device, got %#v", globalOpts.window)
+	}
+}
+
+func TestApplyGlobalOptionsDeviceConflictsWithWindow(t *testing.T) {
+	cmd := newTestCmd()
+	if err := cmd.PersistentFlags().Set("device", "Pixel 5"); err != nil {
+		t.Fatalf("set device: %v", err)
+	}
+	if err := cmd.PersistentFlags().Set("window-size", "100x200"); err != nil {
+		t.Fatalf("set window-size: %v", err)
+	}
+	if err := applyGlobalOptions(cmd); err == nil {
+		t.Fatalf("expected error for device + window-size")
+	} else if !strings.Contains(err.Error(), "--device") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestApplyGlobalOptionsUsesEnvWindowSize(t *testing.T) {
+	t.Setenv("DEV_BROWSER_WINDOW_SIZE", "320x640")
+	cmd := newTestCmd()
+	if err := applyGlobalOptions(cmd); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if globalOpts.window == nil || globalOpts.window.Width != 320 || globalOpts.window.Height != 640 {
+		t.Fatalf("expected window from env, got %#v", globalOpts.window)
 	}
 }
