@@ -41,6 +41,7 @@ func runDaemon(opts *daemonOptions) error {
 		CDPPort:   opts.cdpPort,
 		Headless:  globalOpts.headless,
 		Window:    globalOpts.window,
+		Device:    globalOpts.device,
 		StateFile: opts.stateFile,
 		Logger:    logger,
 	})

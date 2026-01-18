@@ -19,6 +19,7 @@ type globalOptions struct {
 	windowSize  string
 	windowScale float64
 	window      *devbrowser.WindowSize
+	device      string
 }
 
 var globalOpts = &globalOptions{}
@@ -27,14 +28,18 @@ func bindGlobalFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&globalOpts.profile, "profile", getenvDefault("DEV_BROWSER_PROFILE", "default"), "Browser profile")
 	cmd.PersistentFlags().BoolVar(&globalOpts.headless, "headless", defaultHeadless(), "Force headless")
 	cmd.PersistentFlags().BoolVar(&globalOpts.headed, "headed", false, "Disable headless")
-	cmd.PersistentFlags().StringVar(&globalOpts.windowSize, "window-size", "", "Viewport WxH")
+	cmd.PersistentFlags().StringVar(&globalOpts.windowSize, "window-size", getenvDefault("DEV_BROWSER_WINDOW_SIZE", ""), "Viewport WxH")
 	cmd.PersistentFlags().Float64Var(&globalOpts.windowScale, "window-scale", 1.0, "Viewport scale (1, 0.75, 0.5)")
+	cmd.PersistentFlags().StringVar(&globalOpts.device, "device", "", "Device profile name (Playwright)")
 	cmd.PersistentFlags().StringVar(&globalOpts.output, "output", "summary", "Output format (summary|json|path)")
 	cmd.PersistentFlags().StringVar(&globalOpts.outPath, "out", "", "Output path when --output=path")
 }
 
 func applyGlobalOptions(cmd *cobra.Command) error {
 	if err := resolveHeadless(cmd); err != nil {
+		return err
+	}
+	if err := resolveDevice(cmd); err != nil {
 		return err
 	}
 	if err := resolveWindow(cmd); err != nil {
@@ -47,8 +52,8 @@ func applyGlobalOptions(cmd *cobra.Command) error {
 }
 
 func resolveHeadless(cmd *cobra.Command) error {
-	headlessChanged := cmd.Flags().Changed("headless")
-	headedChanged := cmd.Flags().Changed("headed")
+	headlessChanged := flagChanged(cmd, "headless")
+	headedChanged := flagChanged(cmd, "headed")
 	if headedChanged && headlessChanged {
 		return errors.New("use either --headless or --headed")
 	}
@@ -63,7 +68,15 @@ func resolveHeadless(cmd *cobra.Command) error {
 }
 
 func resolveWindow(cmd *cobra.Command) error {
-	windowScaleChanged := cmd.Flags().Changed("window-scale")
+	windowScaleChanged := flagChanged(cmd, "window-scale")
+	windowSizeChanged := flagChanged(cmd, "window-size")
+	if strings.TrimSpace(globalOpts.device) != "" {
+		if windowScaleChanged || windowSizeChanged {
+			return errors.New("use either --device or --window-size/--window-scale")
+		}
+		globalOpts.window = nil
+		return nil
+	}
 	if strings.TrimSpace(globalOpts.windowSize) != "" && windowScaleChanged {
 		return errors.New("use either --window-size or --window-scale")
 	}
@@ -77,6 +90,27 @@ func resolveWindow(cmd *cobra.Command) error {
 	}
 	globalOpts.window = window
 	return nil
+}
+
+func resolveDevice(cmd *cobra.Command) error {
+	globalOpts.device = strings.TrimSpace(globalOpts.device)
+	if flagChanged(cmd, "device") && globalOpts.device == "" {
+		return errors.New("--device requires a non-empty value")
+	}
+	return nil
+}
+
+func flagChanged(cmd *cobra.Command, name string) bool {
+	if flag := cmd.Flags().Lookup(name); flag != nil {
+		return flag.Changed
+	}
+	if flag := cmd.PersistentFlags().Lookup(name); flag != nil {
+		return flag.Changed
+	}
+	if flag := cmd.InheritedFlags().Lookup(name); flag != nil {
+		return flag.Changed
+	}
+	return false
 }
 
 func defaultHeadless() bool {

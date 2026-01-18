@@ -13,7 +13,7 @@ func newListPagesCmd() *cobra.Command {
 		Use:   "list-pages",
 		Short: "List open pages",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if err := devbrowser.StartDaemon(globalOpts.profile, globalOpts.headless, globalOpts.window); err != nil {
+			if err := devbrowser.StartDaemon(globalOpts.profile, globalOpts.headless, globalOpts.window, globalOpts.device); err != nil {
 				return err
 			}
 			base := devbrowser.DaemonBaseURL(globalOpts.profile)

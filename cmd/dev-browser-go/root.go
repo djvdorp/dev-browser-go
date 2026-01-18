@@ -34,6 +34,7 @@ func init() {
 		newStartCmd(),
 		newStopCmd(),
 		newListPagesCmd(),
+		newDevicesCmd(),
 		newGotoCmd(),
 		newSnapshotCmd(),
 		newClickRefCmd(),

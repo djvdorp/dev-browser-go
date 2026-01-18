@@ -12,7 +12,7 @@ func newStartCmd() *cobra.Command {
 		Use:   "start",
 		Short: "Start daemon",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if err := devbrowser.StartDaemon(globalOpts.profile, globalOpts.headless, globalOpts.window); err != nil {
+			if err := devbrowser.StartDaemon(globalOpts.profile, globalOpts.headless, globalOpts.window, globalOpts.device); err != nil {
 				return err
 			}
 			fmt.Printf("started profile=%s url=%s\n", globalOpts.profile, devbrowser.DaemonBaseURL(globalOpts.profile))
