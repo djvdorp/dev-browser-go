@@ -56,3 +56,26 @@ func TestApplyGlobalOptionsUsesEnvWindowSize(t *testing.T) {
 		t.Fatalf("expected window from env, got %#v", globalOpts.window)
 	}
 }
+
+func TestApplyGlobalOptionsDeviceRequiresValue(t *testing.T) {
+	cmd := newTestCmd()
+	if err := cmd.PersistentFlags().Set("device", "  "); err != nil {
+		t.Fatalf("set device: %v", err)
+	}
+	if err := applyGlobalOptions(cmd); err == nil {
+		t.Fatalf("expected error for empty device")
+	}
+}
+
+func TestApplyGlobalOptionsDeviceConflictsWithWindowScale(t *testing.T) {
+	cmd := newTestCmd()
+	if err := cmd.PersistentFlags().Set("device", "Pixel 5"); err != nil {
+		t.Fatalf("set device: %v", err)
+	}
+	if err := cmd.PersistentFlags().Set("window-scale", "0.5"); err != nil {
+		t.Fatalf("set window-scale: %v", err)
+	}
+	if err := applyGlobalOptions(cmd); err == nil {
+		t.Fatalf("expected error for device + window-scale")
+	}
+}
