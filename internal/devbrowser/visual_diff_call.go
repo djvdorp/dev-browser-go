@@ -34,8 +34,9 @@ func runVisualDiff(page playwright.Page, args map[string]interface{}, artifactDi
 		return nil, fmt.Errorf("threshold must be between 0 and 255")
 	}
 
-	beforeDefault := fmt.Sprintf("before-%d.png", NowMS())
-	afterDefault := fmt.Sprintf("after-%d.png", NowMS())
+	ts := NowMS()
+	beforeDefault := fmt.Sprintf("before-%d.png", ts)
+	afterDefault := fmt.Sprintf("after-%d.png", ts+1)
 
 	beforePath, beforeCapture, err := resolveDiffPath(artifactDir, beforeArg, "before")
 	if err != nil {

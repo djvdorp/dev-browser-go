@@ -57,13 +57,18 @@ func loadImage(path string) (image.Image, error) {
 	return img, nil
 }
 
-func writePNG(path string, img image.Image) error {
+func writePNG(path string, img image.Image) (err error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	return png.Encode(file, img)
+	defer func() {
+		if cerr := file.Close(); err == nil && cerr != nil {
+			err = cerr
+		}
+	}()
+	err = png.Encode(file, img)
+	return err
 }
 
 func diffImages(before, after image.Image, threshold uint8) (*image.RGBA, DiffStats, error) {
