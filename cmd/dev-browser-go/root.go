@@ -41,6 +41,7 @@ func init() {
 		newFillRefCmd(),
 		newPressCmd(),
 		newScreenshotCmd(),
+		newVisualDiffCmd(),
 		newBoundsCmd(),
 		newConsoleCmd(),
 		newSaveHTMLCmd(),

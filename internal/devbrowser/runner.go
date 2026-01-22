@@ -272,6 +272,9 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		}
 		return res, nil
 
+	case "visual_diff":
+		return runVisualDiff(page, args, artifactDir)
+
 	case "save_html":
 		includeHTML, err := optionalBool(args, "include_html", true)
 		if err != nil {
