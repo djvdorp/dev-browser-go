@@ -205,6 +205,11 @@ func WriteOutput(profile string, mode string, result map[string]any, outPath str
 			return "", err
 		}
 		return string(enc), nil
+	case "html":
+		if html, ok := result["html"].(string); ok {
+			return html, nil
+		}
+		return "", errors.New("html output not available")
 	case "summary":
 		if snap, ok := result["snapshot"].(string); ok {
 			return snap, nil

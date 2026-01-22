@@ -79,3 +79,16 @@ func TestApplyGlobalOptionsDeviceConflictsWithWindowScale(t *testing.T) {
 		t.Fatalf("expected error for device + window-scale")
 	}
 }
+
+func TestApplyGlobalOptionsAllowsHTMLOutput(t *testing.T) {
+	cmd := newTestCmd()
+	if err := cmd.PersistentFlags().Set("output", "html"); err != nil {
+		t.Fatalf("set output: %v", err)
+	}
+	if err := applyGlobalOptions(cmd); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if globalOpts.output != "html" {
+		t.Fatalf("expected output to be html, got %q", globalOpts.output)
+	}
+}

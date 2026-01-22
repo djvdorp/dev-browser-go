@@ -27,6 +27,15 @@ dev-browser-go click-ref e3
 
 Run `dev-browser-go --help` for full CLI reference.
 
+## Output
+
+```bash
+dev-browser-go snapshot --output summary    # Default text output
+dev-browser-go snapshot --output json       # JSON payload
+dev-browser-go save-html --output html      # HTML to stdout
+dev-browser-go save-html --output path --out page.html
+```
+
 ## Core Workflow
 
 1. **Navigate** to a URL

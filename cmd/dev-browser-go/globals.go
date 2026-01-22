@@ -31,7 +31,7 @@ func bindGlobalFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&globalOpts.windowSize, "window-size", getenvDefault("DEV_BROWSER_WINDOW_SIZE", ""), "Viewport WxH")
 	cmd.PersistentFlags().Float64Var(&globalOpts.windowScale, "window-scale", 1.0, "Viewport scale (1, 0.75, 0.5)")
 	cmd.PersistentFlags().StringVar(&globalOpts.device, "device", "", "Device profile name (Playwright)")
-	cmd.PersistentFlags().StringVar(&globalOpts.output, "output", "summary", "Output format (summary|json|path)")
+	cmd.PersistentFlags().StringVar(&globalOpts.output, "output", "summary", "Output format (summary|json|html|path)")
 	cmd.PersistentFlags().StringVar(&globalOpts.outPath, "out", "", "Output path when --output=path")
 }
 
@@ -45,8 +45,8 @@ func applyGlobalOptions(cmd *cobra.Command) error {
 	if err := resolveWindow(cmd); err != nil {
 		return err
 	}
-	if globalOpts.output != "summary" && globalOpts.output != "json" && globalOpts.output != "path" {
-		return errors.New("--output must be summary|json|path")
+	if globalOpts.output != "summary" && globalOpts.output != "json" && globalOpts.output != "html" && globalOpts.output != "path" {
+		return errors.New("--output must be summary|json|html|path")
 	}
 	return nil
 }
