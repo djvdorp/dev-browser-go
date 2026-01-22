@@ -273,6 +273,10 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		return res, nil
 
 	case "save_html":
+		includeHTML, err := optionalBool(args, "include_html", true)
+		if err != nil {
+			return nil, err
+		}
 		pathArg, err := optionalString(args, "path", "")
 		if err != nil {
 			return nil, err
@@ -288,7 +292,11 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		if err := osWriteFile(path, []byte(html)); err != nil {
 			return nil, err
 		}
-		return RunResult{"path": path}, nil
+		res := RunResult{"path": path}
+		if includeHTML {
+			res["html"] = html
+		}
+		return res, nil
 
 	case "bounds":
 		selector, err := optionalString(args, "selector", "")

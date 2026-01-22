@@ -72,7 +72,7 @@ The daemon starts automatically on first command and keeps the browser session a
 --window-size WxH   Viewport size (default 7680x2160 ultrawide)
 --window-scale S    Viewport scale preset (1, 0.75, 0.5)
 --device <name>     Device profile name (Playwright)
---output <format>   Output format: summary|json|path (default: summary)
+--output <format>   Output format: summary|json|html|path (default: summary)
 --out <path>        Write output to file (with --output=path)
 ```
 
