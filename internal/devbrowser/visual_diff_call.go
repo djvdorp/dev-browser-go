@@ -63,7 +63,7 @@ func runVisualDiff(page playwright.Page, args map[string]interface{}, artifactDi
 		}
 	}
 
-	diffPath, err := SafeArtifactPath(artifactDir, diffArg, fmt.Sprintf("diff-%d.png", NowMS()))
+	diffPath, err := SafeArtifactPath(artifactDir, diffArg, fmt.Sprintf("diff-%d.png", ts+2))
 	if err != nil {
 		return nil, err
 	}
