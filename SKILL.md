@@ -86,6 +86,8 @@ dev-browser-go screenshot --selector ".panel" --padding-px 10  # Element crop + 
 dev-browser-go screenshot --crop 0,0,800,600 # Crop region (max 2000x2000)
 dev-browser-go bounds ".panel" --nth 1      # Element bounds (CSS or ARIA)
 dev-browser-go save-html --path page.html    # Save page HTML
+dev-browser-go style-capture --mode inline   # Inline computed styles
+dev-browser-go style-capture --mode bundle --css-path styles.css --selector ".panel"
 ```
 
 ### Interaction

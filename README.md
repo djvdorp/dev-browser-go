@@ -115,6 +115,7 @@ Note: device profiles use Playwright names; device/viewport flags apply when the
 | `fill-ref <ref> "text"` | Fill input by ref |
 | `press <key>` | Keyboard input |
 | `screenshot` | Save screenshot (full-page or element crop with padding; crops clamp to 2000x2000) |
+| `style-capture` | Capture computed styles (inline or bundled CSS) |
 | `bounds` | Get element bounding box (selector/ARIA) |
 | `console` | Read page console logs (default levels: info,warning,error) |
 | `save-html` | Save page HTML |
@@ -152,6 +153,13 @@ dev-browser-go bounds ".vault-panel" --nth 1
 dev-browser-go screenshot --selector ".vault-panel" --padding-px 10
 ```
 
+Style capture:
+```bash
+dev-browser-go goto https://example.com
+dev-browser-go style-capture --mode inline --max-nodes 1200
+dev-browser-go style-capture --mode bundle --css-path styles.css --selector ".main"
+```
+
 For detailed workflow examples, see [SKILL.md](SKILL.md).
 
 ## Integration with Codex
@@ -167,6 +175,7 @@ Available commands:
 - dev-browser-go click-ref <ref>
 - dev-browser-go fill-ref <ref> "text"
 - dev-browser-go screenshot
+- dev-browser-go style-capture
 - dev-browser-go press <key>
 - dev-browser-go console [--since <id>] [--limit <n>] [--level <lvl> ...]
 ```
@@ -179,6 +188,7 @@ Available commands:
 - `fill-ref <ref> "text"` - fill input
 - `press <key>` - keyboard input
 - `screenshot` - save screenshot
+- `style-capture` - capture computed styles (inline or bundled CSS)
 - `bounds` - get element bounds (selector/ARIA)
 - `console` - read page console logs (default levels: info,warning,error; repeatable `--level`)
 - `save-html` - save page HTML

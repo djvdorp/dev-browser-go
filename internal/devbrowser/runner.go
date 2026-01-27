@@ -272,6 +272,99 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		}
 		return res, nil
 
+	case "style_capture":
+		pathArg, err := optionalStringAllowEmpty(args, "path", "")
+		if err != nil {
+			return nil, err
+		}
+		cssPathArg, err := optionalStringAllowEmpty(args, "css_path", "")
+		if err != nil {
+			return nil, err
+		}
+		mode, err := optionalString(args, "mode", "inline")
+		if err != nil {
+			return nil, err
+		}
+		mode = strings.ToLower(strings.TrimSpace(mode))
+		if mode == "" {
+			mode = "inline"
+		}
+		if mode != "inline" && mode != "bundle" {
+			return nil, fmt.Errorf("invalid mode '%s' (expected inline or bundle)", mode)
+		}
+		selector, err := optionalString(args, "selector", "")
+		if err != nil {
+			return nil, err
+		}
+		maxNodes, err := optionalInt(args, "max_nodes", 1500)
+		if err != nil {
+			return nil, err
+		}
+		if maxNodes == 0 {
+			maxNodes = 1500
+		}
+		includeAll, err := optionalBool(args, "include_all", false)
+		if err != nil {
+			return nil, err
+		}
+		strip, err := optionalBool(args, "strip", true)
+		if err != nil {
+			return nil, err
+		}
+		properties, err := optionalStringSlice(args, "properties")
+		if err != nil {
+			return nil, err
+		}
+
+		if strings.TrimSpace(cssPathArg) != "" && mode != "bundle" {
+			return nil, errors.New("--css-path requires --mode bundle")
+		}
+
+		path, err := SafeArtifactPath(artifactDir, pathArg, fmt.Sprintf("style-capture-%d.html", NowMS()))
+		if err != nil {
+			return nil, err
+		}
+
+		result, err := StyleCapture(page, StyleCaptureOptions{
+			Mode:       mode,
+			Selector:   selector,
+			MaxNodes:   maxNodes,
+			IncludeAll: includeAll,
+			Properties: properties,
+			Strip:      strip,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := osWriteFile(path, []byte(result.HTML)); err != nil {
+			return nil, err
+		}
+
+		res := RunResult{
+			"path":        path,
+			"html":        result.HTML,
+			"css":         result.CSS,
+			"mode":        result.Mode,
+			"selector":    selector,
+			"node_count":  result.NodeCount,
+			"truncated":   result.Truncated,
+			"include_all": includeAll,
+			"strip":       strip,
+		}
+		if len(result.Properties) > 0 {
+			res["properties"] = result.Properties
+		}
+		if strings.TrimSpace(cssPathArg) != "" {
+			cssPath, err := SafeArtifactPath(artifactDir, cssPathArg, fmt.Sprintf("style-capture-%d.css", NowMS()))
+			if err != nil {
+				return nil, err
+			}
+			if err := osWriteFile(cssPath, []byte(result.CSS)); err != nil {
+				return nil, err
+			}
+			res["css_path"] = cssPath
+		}
+		return res, nil
 	case "save_html":
 		includeHTML, err := optionalBool(args, "include_html", true)
 		if err != nil {

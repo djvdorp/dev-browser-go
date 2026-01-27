@@ -8,7 +8,7 @@ Goal: feature complete for UI/UX change workflows.
 
 - [ ] JS eval tool. Read DOM, computed styles, box model, runtime text.
 - [ ] JS/CSS injection. Prototype tweaks in-page, no rebuild.
-- [ ] Style capture. Bundle computed styles or inline critical CSS.
+- [x] Style capture. Bundle computed styles or inline critical CSS.
 - [ ] Asset snapshot. Save HTML plus linked CSS/JS/assets for offline review.
 - [ ] Visual diff. Before/after screenshots and simple pixel diff.
 - [x] Output mode. Return HTML payload on stdout/JSON, not file only.
