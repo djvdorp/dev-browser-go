@@ -115,6 +115,7 @@ Note: device profiles use Playwright names; device/viewport flags apply when the
 | `fill-ref <ref> "text"` | Fill input by ref |
 | `press <key>` | Keyboard input |
 | `screenshot` | Save screenshot (full-page or element crop with padding; crops clamp to 2000x2000) |
+| `visual-diff` | Capture before/after screenshots and save diff image |
 | `bounds` | Get element bounding box (selector/ARIA) |
 | `console` | Read page console logs (default levels: info,warning,error) |
 | `save-html` | Save page HTML |
@@ -152,6 +153,13 @@ dev-browser-go bounds ".vault-panel" --nth 1
 dev-browser-go screenshot --selector ".vault-panel" --padding-px 10
 ```
 
+Visual diff:
+```bash
+dev-browser-go goto https://example.com
+dev-browser-go visual-diff --after-wait-ms 1000 --threshold 5 --output json
+dev-browser-go visual-diff --before baseline.png --after latest.png --diff-path diff.png
+```
+
 For detailed workflow examples, see [SKILL.md](SKILL.md).
 
 ## Integration with Codex
@@ -179,6 +187,7 @@ Available commands:
 - `fill-ref <ref> "text"` - fill input
 - `press <key>` - keyboard input
 - `screenshot` - save screenshot
+- `visual-diff` - capture before/after screenshots and save diff image
 - `bounds` - get element bounds (selector/ARIA)
 - `console` - read page console logs (default levels: info,warning,error; repeatable `--level`)
 - `save-html` - save page HTML
