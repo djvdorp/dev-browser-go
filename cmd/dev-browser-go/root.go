@@ -43,6 +43,7 @@ func init() {
 		newScreenshotCmd(),
 		newStyleCaptureCmd(),
 		newVisualDiffCmd(),
+		newSaveBaselineCmd(),
 		newBoundsCmd(),
 		newConsoleCmd(),
 		newSaveHTMLCmd(),
@@ -50,5 +51,8 @@ func init() {
 		newCallCmd(),
 		newActionsCmd(),
 		newClosePageCmd(),
+		newJSEvalCmd(),
+		newInjectCmd(),
+		newAssetSnapshotCmd(),
 	)
 }

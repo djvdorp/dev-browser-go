@@ -88,6 +88,9 @@ dev-browser-go bounds ".panel" --nth 1      # Element bounds (CSS or ARIA)
 dev-browser-go save-html --path page.html    # Save page HTML
 dev-browser-go style-capture --mode inline   # Inline computed styles
 dev-browser-go style-capture --mode bundle --css-path styles.css --selector ".panel"
+dev-browser-go js-eval --expr "document.title"  # Evaluate JavaScript
+dev-browser-go js-eval --selector ".btn" --expr "this.textContent"
+dev-browser-go asset-snapshot --path offline.html  # Save with assets
 ```
 
 ### Interaction
@@ -104,6 +107,78 @@ dev-browser-go press Escape                  # Close modals
 dev-browser-go wait                          # Wait for page load
 dev-browser-go wait --state networkidle      # Wait for network idle
 dev-browser-go wait --timeout-ms 5000        # Custom timeout
+```
+
+### JavaScript Evaluation
+```bash
+# Get page title
+dev-browser-go js-eval --expr "document.title"
+
+# Read computed styles
+dev-browser-go js-eval --selector ".header" --expr "getComputedStyle(this).backgroundColor"
+
+# Get element text
+dev-browser-go js-eval --selector "h1" --expr "this.textContent"
+
+# Check element state
+dev-browser-go js-eval --selector ".button" --expr "this.disabled"
+
+# Get box model
+dev-browser-go js-eval --selector ".card" --expr "this.getBoundingClientRect()"
+
+# Complex queries
+dev-browser-go js-eval --expr "Array.from(document.querySelectorAll('a')).length"
+```
+
+### JS/CSS Injection (Prototyping)
+```bash
+# Inject JavaScript
+dev-browser-go inject --script "document.body.style.backgroundColor = 'yellow'"
+
+# Inject CSS
+dev-browser-go inject --style "body { background-color: yellow; } .header { color: red; }"
+
+# Inject from file
+dev-browser-go inject --file ./fix.js
+dev-browser-go inject --file ./patch.css
+
+# Prototype without rebuild - quick feedback loop!
+dev-browser-go inject --style ".button { background: blue; }" && dev-browser-go screenshot
+```
+
+### Asset Snapshot (Offline Review)
+```bash
+# Save with all assets
+dev-browser-go asset-snapshot --path offline.html
+
+# Customize asset handling
+dev-browser-go asset-snapshot --path offline.html \
+  --asset-types css,js \
+  --max-depth 3 \
+  --strip-scripts \
+  --inline-threshold 20480
+
+# Share with team for offline review
+```
+
+### Visual Diff / Regression Testing
+```bash
+# Save baseline
+dev-browser-go goto https://example.com
+dev-browser-go save-baseline --path baseline.png
+
+# After changes, compare
+dev-browser-go visual-diff --baseline baseline.png \
+  --output diff.png \
+  --tolerance 0.05 \
+  --pixel-threshold 5
+
+# Element-level regression testing
+dev-browser-go save-baseline --path button-baseline.png \
+  --selector ".submit-button" --padding-px 20
+
+# Later, check for regressions
+dev-browser-go visual-diff --baseline button-baseline.png --pixel-threshold 2
 ```
 
 ### Batch Actions
