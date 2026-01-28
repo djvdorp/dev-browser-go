@@ -33,8 +33,8 @@ Features needed to make `dev-browser-go` feature-complete for UI/UX development 
 ## Medium Priority (Enhanced Workflow)
 
 ### 5. Visual Diff / Regression Testing
-- [ ] Compare screenshots against baseline
-- [ ] Highlight differences
+- [x] Compare screenshots against baseline
+- [x] Highlight differences
 - [ ] Save/update baselines
 - [ ] Compare DOM structure
 

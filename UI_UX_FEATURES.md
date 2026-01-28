@@ -10,7 +10,7 @@ Goal: feature complete for UI/UX change workflows.
 - [ ] JS/CSS injection. Prototype tweaks in-page, no rebuild.
 - [x] Style capture. Bundle computed styles or inline critical CSS.
 - [ ] Asset snapshot. Save HTML plus linked CSS/JS/assets for offline review.
-- [ ] Visual diff. Before/after screenshots and simple pixel diff.
+- [x] Visual diff. Before/after screenshots and simple pixel diff.
 - [x] Output mode. Return HTML payload on stdout/JSON, not file only.
 
 ## Notes

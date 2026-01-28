@@ -116,6 +116,7 @@ Note: device profiles use Playwright names; device/viewport flags apply when the
 | `press <key>` | Keyboard input |
 | `screenshot` | Save screenshot (full-page or element crop with padding; crops clamp to 2000x2000) |
 | `style-capture` | Capture computed styles (inline or bundled CSS) |
+| `visual-diff` | Capture before/after screenshots and save diff image |
 | `bounds` | Get element bounding box (selector/ARIA) |
 | `console` | Read page console logs (default levels: info,warning,error) |
 | `save-html` | Save page HTML |
@@ -160,6 +161,13 @@ dev-browser-go style-capture --mode inline --max-nodes 1200
 dev-browser-go style-capture --mode bundle --css-path styles.css --selector ".main"
 ```
 
+Visual diff:
+```bash
+dev-browser-go goto https://example.com
+dev-browser-go visual-diff --after-wait-ms 1000 --threshold 5 --output json
+dev-browser-go visual-diff --before baseline.png --after latest.png --diff-path diff.png
+```
+
 For detailed workflow examples, see [SKILL.md](SKILL.md).
 
 ## Integration with Codex
@@ -176,6 +184,7 @@ Available commands:
 - dev-browser-go fill-ref <ref> "text"
 - dev-browser-go screenshot
 - dev-browser-go style-capture
+- dev-browser-go visual-diff
 - dev-browser-go press <key>
 - dev-browser-go console [--since <id>] [--limit <n>] [--level <lvl> ...]
 ```
@@ -189,6 +198,7 @@ Available commands:
 - `press <key>` - keyboard input
 - `screenshot` - save screenshot
 - `style-capture` - capture computed styles (inline or bundled CSS)
+- `visual-diff` - capture before/after screenshots and save diff image
 - `bounds` - get element bounds (selector/ARIA)
 - `console` - read page console logs (default levels: info,warning,error; repeatable `--level`)
 - `save-html` - save page HTML
