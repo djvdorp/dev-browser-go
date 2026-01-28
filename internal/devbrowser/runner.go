@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -428,6 +429,249 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 			"width":     box.Width,
 			"height":    box.Height,
 		}, nil
+
+	case "js_eval":
+		expression, err := requireString(args, "expression")
+		if err != nil {
+			return nil, err
+		}
+		format, err := optionalString(args, "format", "auto")
+		if err != nil {
+			return nil, err
+		}
+		selector, err := optionalString(args, "selector", "")
+		if err != nil {
+			return nil, err
+		}
+		ariaRole, err := optionalString(args, "aria_role", "")
+		if err != nil {
+			return nil, err
+		}
+		ariaName, err := optionalString(args, "aria_name", "")
+		if err != nil {
+			return nil, err
+		}
+		nth, err := optionalInt(args, "nth", 1)
+		if err != nil {
+			return nil, err
+		}
+
+		result, err := evaluateJS(page, expression, selector, ariaRole, ariaName, nth)
+		if err != nil {
+			return nil, err
+		}
+
+		res := RunResult{"result": result}
+		if format != "auto" {
+			res["format"] = format
+		}
+		return res, nil
+
+	case "inject":
+		script, err := optionalString(args, "script", "")
+		if err != nil {
+			return nil, err
+		}
+		style, err := optionalString(args, "style", "")
+		if err != nil {
+			return nil, err
+		}
+		file, err := optionalString(args, "file", "")
+		if err != nil {
+			return nil, err
+		}
+		waitMs, err := optionalInt(args, "wait_ms", 100)
+		if err != nil {
+			return nil, err
+		}
+
+		injected := map[string]bool{}
+		if strings.TrimSpace(script) != "" {
+			_, err := page.Evaluate(script)
+			if err != nil {
+				return nil, fmt.Errorf("script injection failed: %w", err)
+			}
+			injected["script"] = true
+		}
+		if strings.TrimSpace(style) != "" {
+			styleJS := fmt.Sprintf(`(() => {
+				const style = document.createElement('style');
+				style.textContent = %q;
+				document.head.appendChild(style);
+				return true;
+			})()`, style)
+			_, err := page.Evaluate(styleJS)
+			if err != nil {
+				return nil, fmt.Errorf("style injection failed: %w", err)
+			}
+			injected["style"] = true
+		}
+		if strings.TrimSpace(file) != "" {
+			content, err := os.ReadFile(file)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read file %s: %w", file, err)
+			}
+			ext := strings.ToLower(filepath.Ext(file))
+			if ext == ".css" {
+				styleJS := fmt.Sprintf(`(() => {
+					const style = document.createElement('style');
+					style.textContent = %q;
+					document.head.appendChild(style);
+					return true;
+				})()`, string(content))
+				_, err = page.Evaluate(styleJS)
+				if err != nil {
+					return nil, fmt.Errorf("CSS file injection failed: %w", err)
+				}
+				injected["css_file"] = true
+			} else {
+				_, err := page.Evaluate(string(content))
+				if err != nil {
+					return nil, fmt.Errorf("JS file injection failed: %w", err)
+				}
+				injected["js_file"] = true
+			}
+		}
+
+		if waitMs > 0 {
+			page.WaitForTimeout(float64(waitMs))
+		}
+
+		return RunResult{"injected": injected}, nil
+
+	case "asset_snapshot":
+		pathArg, err := optionalString(args, "path", "")
+		if err != nil {
+			return nil, err
+		}
+		includeAssets, err := optionalBool(args, "include_assets", true)
+		if err != nil {
+			return nil, err
+		}
+		assetTypes, err := optionalStringSlice(args, "asset_types")
+		if err != nil {
+			return nil, err
+		}
+		maxDepth, err := optionalInt(args, "max_depth", 2)
+		if err != nil {
+			return nil, err
+		}
+		stripScripts, err := optionalBool(args, "strip_scripts", false)
+		if err != nil {
+			return nil, err
+		}
+		inlineThreshold, err := optionalInt(args, "inline_threshold", 10240)
+		if err != nil {
+			return nil, err
+		}
+
+		path, err := SafeArtifactPath(artifactDir, pathArg, fmt.Sprintf("asset-snapshot-%d.html", NowMS()))
+		if err != nil {
+			return nil, err
+		}
+
+		snapshot, err := createAssetSnapshot(page, includeAssets, assetTypes, maxDepth, stripScripts, inlineThreshold)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := osWriteFile(path, []byte(snapshot.HTML)); err != nil {
+			return nil, err
+		}
+
+		res := RunResult{
+			"path":           path,
+			"html":           snapshot.HTML,
+			"assets_count":   snapshot.AssetCount,
+			"assets_inline":  snapshot.InlineCount,
+			"assets_linked":  snapshot.LinkedCount,
+			"stripped":       stripScripts,
+		}
+		return res, nil
+
+	case "visual_diff":
+		baselinePath, err := requireString(args, "baseline_path")
+		if err != nil {
+			return nil, err
+		}
+		outputPath, err := optionalString(args, "output_path", "")
+		if err != nil {
+			return nil, err
+		}
+		tolerance, err := optionalFloat(args, "tolerance", 0.1)
+		if err != nil {
+			return nil, err
+		}
+		pixelThreshold, err := optionalInt(args, "pixel_threshold", 10)
+		if err != nil {
+			return nil, err
+		}
+		highlight, err := optionalBool(args, "highlight", true)
+		if err != nil {
+			return nil, err
+		}
+
+		diffResult, err := compareScreenshots(page, baselinePath, outputPath, tolerance, pixelThreshold, highlight)
+		if err != nil {
+			return nil, err
+		}
+
+		return RunResult{
+			"passed":         diffResult.Passed,
+			"different_pixels": diffResult.DifferentPixels,
+			"diff_percentage": diffResult.DiffPercentage,
+			"baseline_path":  baselinePath,
+			"output_path":    outputPath,
+			"tolerance":      tolerance,
+		}, nil
+
+	case "save_baseline":
+		pathArg, err := requireString(args, "path")
+		if err != nil {
+			return nil, err
+		}
+		fullPage, err := optionalBool(args, "full_page", true)
+		if err != nil {
+			return nil, err
+		}
+
+		path, err := SafeArtifactPath(artifactDir, pathArg, pathArg)
+		if err != nil {
+			return nil, err
+		}
+
+		opts := playwright.PageScreenshotOptions{Path: playwright.String(path), FullPage: playwright.Bool(fullPage)}
+
+		selector, _ := args["selector"].(string)
+		ariaRole, _ := args["aria_role"].(string)
+		ariaName, _ := args["aria_name"].(string)
+		nth, _ := args["nth"].(int)
+		padding, _ := args["padding_px"].(int)
+		targetTimeout, _ := args["timeout_ms"].(int)
+
+		hasTarget := strings.TrimSpace(selector) != "" || strings.TrimSpace(ariaRole) != "" || strings.TrimSpace(ariaName) != ""
+
+		if hasTarget {
+			spec := TargetSpec{Selector: selector, AriaRole: ariaRole, AriaName: ariaName, Nth: nth, Timeout: targetTimeout}
+			box, err := resolveBounds(page, spec)
+			if err != nil {
+				return nil, err
+			}
+			vp := viewportSize(page)
+			clip, err := clipWithPadding(box, padding, vp)
+			if err != nil {
+				return nil, err
+			}
+			opts.Clip = clip
+			opts.FullPage = playwright.Bool(false)
+		}
+
+		_, err = page.Screenshot(opts)
+		if err != nil {
+			return nil, err
+		}
+
+		return RunResult{"path": path, "baseline_saved": true}, nil
 	}
 
 	return nil, fmt.Errorf("unknown call '%s'", name)

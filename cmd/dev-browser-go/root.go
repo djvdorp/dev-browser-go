@@ -49,5 +49,10 @@ func init() {
 		newCallCmd(),
 		newActionsCmd(),
 		newClosePageCmd(),
+		newJSEvalCmd(),
+		newInjectCmd(),
+		newAssetSnapshotCmd(),
+		newVisualDiffCmd(),
+		newSaveBaselineCmd(),
 	)
 }
