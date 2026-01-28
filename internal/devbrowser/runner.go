@@ -309,9 +309,13 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		if err != nil {
 			return nil, err
 		}
-		strip, err := optionalBool(args, "strip", true)
-		if err != nil {
-			return nil, err
+		var stripPtr *bool
+		if _, hasStrip := args["strip"]; hasStrip {
+			strip, err := optionalBool(args, "strip", true)
+			if err != nil {
+				return nil, err
+			}
+			stripPtr = &strip
 		}
 		properties, err := optionalStringSlice(args, "properties")
 		if err != nil {
@@ -333,7 +337,7 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 			MaxNodes:   maxNodes,
 			IncludeAll: includeAll,
 			Properties: properties,
-			Strip:      &strip,
+			Strip:      stripPtr,
 		})
 		if err != nil {
 			return nil, err
@@ -351,7 +355,9 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 			"node_count":  result.NodeCount,
 			"truncated":   result.Truncated,
 			"include_all": includeAll,
-			"strip":       strip,
+		}
+		if stripPtr != nil {
+			res["strip"] = *stripPtr
 		}
 		if len(result.Properties) > 0 {
 			res["properties"] = result.Properties
