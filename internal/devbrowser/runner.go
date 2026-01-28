@@ -333,7 +333,7 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 			MaxNodes:   maxNodes,
 			IncludeAll: includeAll,
 			Properties: properties,
-			Strip:      strip,
+			Strip:      &strip,
 		})
 		if err != nil {
 			return nil, err

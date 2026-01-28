@@ -12,7 +12,7 @@ type StyleCaptureOptions struct {
 	MaxNodes   int
 	IncludeAll bool
 	Properties []string
-	Strip      bool
+	Strip      *bool
 }
 
 type StyleCaptureResult struct {
@@ -49,7 +49,9 @@ func StyleCapture(page playwright.Page, opts StyleCaptureOptions) (*StyleCapture
 		"selector":   opts.Selector,
 		"maxNodes":   opts.MaxNodes,
 		"includeAll": opts.IncludeAll,
-		"strip":      opts.Strip,
+	}
+	if opts.Strip != nil {
+		payload["strip"] = *opts.Strip
 	}
 	if len(opts.Properties) > 0 {
 		payload["properties"] = opts.Properties
