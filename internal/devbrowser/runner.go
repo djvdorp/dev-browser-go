@@ -3,7 +3,9 @@ package devbrowser
 import (
 	"errors"
 	"fmt"
+	"image"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -272,9 +274,105 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		}
 		return res, nil
 
-	case "visual_diff":
-		return runVisualDiff(page, args, artifactDir)
+	case "style_capture":
+		pathArg, err := optionalStringAllowEmpty(args, "path", "")
+		if err != nil {
+			return nil, err
+		}
+		cssPathArg, err := optionalStringAllowEmpty(args, "css_path", "")
+		if err != nil {
+			return nil, err
+		}
+		mode, err := optionalString(args, "mode", "inline")
+		if err != nil {
+			return nil, err
+		}
+		mode = strings.ToLower(strings.TrimSpace(mode))
+		if mode == "" {
+			mode = "inline"
+		}
+		if mode != "inline" && mode != "bundle" {
+			return nil, fmt.Errorf("invalid mode '%s' (expected inline or bundle)", mode)
+		}
+		selector, err := optionalString(args, "selector", "")
+		if err != nil {
+			return nil, err
+		}
+		maxNodes, err := optionalInt(args, "max_nodes", 1500)
+		if err != nil {
+			return nil, err
+		}
+		if maxNodes == 0 {
+			maxNodes = 1500
+		}
+		includeAll, err := optionalBool(args, "include_all", false)
+		if err != nil {
+			return nil, err
+		}
+		var stripPtr *bool
+		if _, hasStrip := args["strip"]; hasStrip {
+			strip, err := optionalBool(args, "strip", true)
+			if err != nil {
+				return nil, err
+			}
+			stripPtr = &strip
+		}
+		properties, err := optionalStringSlice(args, "properties")
+		if err != nil {
+			return nil, err
+		}
 
+		if strings.TrimSpace(cssPathArg) != "" && mode != "bundle" {
+			return nil, errors.New("--css-path requires --mode bundle")
+		}
+
+		path, err := SafeArtifactPath(artifactDir, pathArg, fmt.Sprintf("style-capture-%d.html", NowMS()))
+		if err != nil {
+			return nil, err
+		}
+
+		result, err := StyleCapture(page, StyleCaptureOptions{
+			Mode:       mode,
+			Selector:   selector,
+			MaxNodes:   maxNodes,
+			IncludeAll: includeAll,
+			Properties: properties,
+			Strip:      stripPtr,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := osWriteFile(path, []byte(result.HTML)); err != nil {
+			return nil, err
+		}
+
+		res := RunResult{
+			"path":        path,
+			"html":        result.HTML,
+			"css":         result.CSS,
+			"mode":        result.Mode,
+			"selector":    selector,
+			"node_count":  result.NodeCount,
+			"truncated":   result.Truncated,
+			"include_all": includeAll,
+		}
+		if stripPtr != nil {
+			res["strip"] = *stripPtr
+		}
+		if len(result.Properties) > 0 {
+			res["properties"] = result.Properties
+		}
+		if strings.TrimSpace(cssPathArg) != "" {
+			cssPath, err := SafeArtifactPath(artifactDir, cssPathArg, fmt.Sprintf("style-capture-%d.css", NowMS()))
+			if err != nil {
+				return nil, err
+			}
+			if err := osWriteFile(cssPath, []byte(result.CSS)); err != nil {
+				return nil, err
+			}
+			res["css_path"] = cssPath
+		}
+		return res, nil
 	case "save_html":
 		includeHTML, err := optionalBool(args, "include_html", true)
 		if err != nil {
@@ -338,6 +436,288 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 			"width":     box.Width,
 			"height":    box.Height,
 		}, nil
+
+	case "js_eval":
+		expression, err := requireString(args, "expression")
+		if err != nil {
+			return nil, err
+		}
+		format, err := optionalString(args, "format", "auto")
+		if err != nil {
+			return nil, err
+		}
+		selector, err := optionalString(args, "selector", "")
+		if err != nil {
+			return nil, err
+		}
+		ariaRole, err := optionalString(args, "aria_role", "")
+		if err != nil {
+			return nil, err
+		}
+		ariaName, err := optionalString(args, "aria_name", "")
+		if err != nil {
+			return nil, err
+		}
+		nth, err := optionalInt(args, "nth", 1)
+		if err != nil {
+			return nil, err
+		}
+
+		result, err := evaluateJS(page, expression, selector, ariaRole, ariaName, nth)
+		if err != nil {
+			return nil, err
+		}
+
+		res := RunResult{"result": result}
+		if format != "auto" {
+			res["format"] = format
+		}
+		return res, nil
+
+	case "inject":
+		script, err := optionalString(args, "script", "")
+		if err != nil {
+			return nil, err
+		}
+		style, err := optionalString(args, "style", "")
+		if err != nil {
+			return nil, err
+		}
+		file, err := optionalString(args, "file", "")
+		if err != nil {
+			return nil, err
+		}
+		waitMs, err := optionalInt(args, "wait_ms", 100)
+		if err != nil {
+			return nil, err
+		}
+
+		injected := map[string]bool{}
+		if strings.TrimSpace(script) != "" {
+			_, err := page.Evaluate(script)
+			if err != nil {
+				return nil, fmt.Errorf("script injection failed: %w", err)
+			}
+			injected["script"] = true
+		}
+		if strings.TrimSpace(style) != "" {
+			styleJS := fmt.Sprintf(`(() => {
+				const style = document.createElement('style');
+				style.textContent = %q;
+				document.head.appendChild(style);
+				return true;
+			})()`, style)
+			_, err := page.Evaluate(styleJS)
+			if err != nil {
+				return nil, fmt.Errorf("style injection failed: %w", err)
+			}
+			injected["style"] = true
+		}
+		if strings.TrimSpace(file) != "" {
+			content, err := os.ReadFile(file)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read file %s: %w", file, err)
+			}
+			ext := strings.ToLower(filepath.Ext(file))
+			if ext == ".css" {
+				styleJS := fmt.Sprintf(`(() => {
+					const style = document.createElement('style');
+					style.textContent = %q;
+					document.head.appendChild(style);
+					return true;
+				})()`, string(content))
+				_, err = page.Evaluate(styleJS)
+				if err != nil {
+					return nil, fmt.Errorf("CSS file injection failed: %w", err)
+				}
+				injected["css_file"] = true
+			} else {
+				_, err := page.Evaluate(string(content))
+				if err != nil {
+					return nil, fmt.Errorf("JS file injection failed: %w", err)
+				}
+				injected["js_file"] = true
+			}
+		}
+
+		if waitMs > 0 {
+			page.WaitForTimeout(float64(waitMs))
+		}
+
+		return RunResult{"injected": injected}, nil
+
+	case "asset_snapshot":
+		pathArg, err := optionalString(args, "path", "")
+		if err != nil {
+			return nil, err
+		}
+		includeAssets, err := optionalBool(args, "include_assets", true)
+		if err != nil {
+			return nil, err
+		}
+		assetTypes, err := optionalStringSlice(args, "asset_types")
+		if err != nil {
+			return nil, err
+		}
+		maxDepth, err := optionalInt(args, "max_depth", 2)
+		if err != nil {
+			return nil, err
+		}
+		stripScripts, err := optionalBool(args, "strip_scripts", false)
+		if err != nil {
+			return nil, err
+		}
+		inlineThreshold, err := optionalInt(args, "inline_threshold", 10240)
+		if err != nil {
+			return nil, err
+		}
+
+		path, err := SafeArtifactPath(artifactDir, pathArg, fmt.Sprintf("asset-snapshot-%d.html", NowMS()))
+		if err != nil {
+			return nil, err
+		}
+
+		snapshot, err := createAssetSnapshot(page, includeAssets, assetTypes, maxDepth, stripScripts, inlineThreshold)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := osWriteFile(path, []byte(snapshot.HTML)); err != nil {
+			return nil, err
+		}
+
+		res := RunResult{
+			"path":          path,
+			"html":          snapshot.HTML,
+			"assets_count":  snapshot.AssetCount,
+			"assets_inline": snapshot.InlineCount,
+			"assets_linked": snapshot.LinkedCount,
+			"stripped":      stripScripts,
+		}
+		return res, nil
+
+	case "visual_diff":
+		baselineArg, err := requireString(args, "baseline_path")
+		if err != nil {
+			return nil, err
+		}
+		outputArg, err := optionalString(args, "output_path", "")
+		if err != nil {
+			return nil, err
+		}
+		tolerance, err := optionalFloat(args, "tolerance", 0.1)
+		if err != nil {
+			return nil, err
+		}
+		if tolerance < 0 || tolerance > 1 {
+			return nil, fmt.Errorf("tolerance must be between 0 and 1")
+		}
+		pixelThreshold, err := optionalInt(args, "pixel_threshold", 10)
+		if err != nil {
+			return nil, err
+		}
+		highlight, err := optionalBool(args, "highlight", true)
+		if err != nil {
+			return nil, err
+		}
+		ignoreRegions, err := optionalIgnoreRegions(args, "ignore_regions")
+		if err != nil {
+			return nil, err
+		}
+
+		baselinePath, err := resolveInputPath(artifactDir, baselineArg)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(baselinePath) == "" {
+			return nil, errors.New("baseline path is required")
+		}
+
+		outputPath := ""
+		if strings.TrimSpace(outputArg) != "" {
+			outputPath, err = SafeArtifactPath(artifactDir, outputArg, outputArg)
+			if err != nil {
+				return nil, err
+			}
+		} else if highlight {
+			outputPath, err = SafeArtifactPath(artifactDir, "", fmt.Sprintf("diff-%d.png", NowMS()))
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		diffResult, err := compareScreenshots(page, baselinePath, outputPath, tolerance, pixelThreshold, highlight, ignoreRegions)
+		if err != nil {
+			return nil, err
+		}
+
+		res := RunResult{
+			"passed":           diffResult.Passed,
+			"different_pixels": diffResult.DifferentPixels,
+			"diff_percentage":  diffResult.DiffPercentage,
+			"baseline_path":    baselinePath,
+			"tolerance":        tolerance,
+			"pixel_threshold":  pixelThreshold,
+			"highlight":        highlight,
+		}
+		if diffResult.OutputPath != "" {
+			res["output_path"] = diffResult.OutputPath
+		}
+		if len(ignoreRegions) > 0 {
+			res["ignored_regions"] = len(ignoreRegions)
+		}
+		return res, nil
+
+	case "diff_images":
+		return runDiffImages(page, args, artifactDir)
+
+	case "save_baseline":
+		pathArg, err := requireString(args, "path")
+		if err != nil {
+			return nil, err
+		}
+		fullPage, err := optionalBool(args, "full_page", true)
+		if err != nil {
+			return nil, err
+		}
+
+		path, err := SafeArtifactPath(artifactDir, pathArg, pathArg)
+		if err != nil {
+			return nil, err
+		}
+
+		opts := playwright.PageScreenshotOptions{Path: playwright.String(path), FullPage: playwright.Bool(fullPage)}
+
+		selector, _ := args["selector"].(string)
+		ariaRole, _ := args["aria_role"].(string)
+		ariaName, _ := args["aria_name"].(string)
+		nth, _ := args["nth"].(int)
+		padding, _ := args["padding_px"].(int)
+		targetTimeout, _ := args["timeout_ms"].(int)
+
+		hasTarget := strings.TrimSpace(selector) != "" || strings.TrimSpace(ariaRole) != "" || strings.TrimSpace(ariaName) != ""
+
+		if hasTarget {
+			spec := TargetSpec{Selector: selector, AriaRole: ariaRole, AriaName: ariaName, Nth: nth, Timeout: targetTimeout}
+			box, err := resolveBounds(page, spec)
+			if err != nil {
+				return nil, err
+			}
+			vp := viewportSize(page)
+			clip, err := clipWithPadding(box, padding, vp)
+			if err != nil {
+				return nil, err
+			}
+			opts.Clip = clip
+			opts.FullPage = playwright.Bool(false)
+		}
+
+		_, err = page.Screenshot(opts)
+		if err != nil {
+			return nil, err
+		}
+
+		return RunResult{"path": path, "baseline_saved": true}, nil
 	}
 
 	return nil, fmt.Errorf("unknown call '%s'", name)
@@ -608,6 +988,57 @@ func asInt(v interface{}) (int, bool) {
 		return int(t), true
 	default:
 		return 0, false
+	}
+}
+
+func optionalIgnoreRegions(args map[string]interface{}, key string) ([]image.Rectangle, error) {
+	raw, ok := args[key]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+	switch list := raw.(type) {
+	case []map[string]int:
+		regions := make([]image.Rectangle, 0, len(list))
+		for _, entry := range list {
+			w := entry["w"]
+			h := entry["h"]
+			if w <= 0 || h <= 0 {
+				continue
+			}
+			regions = append(regions, image.Rect(entry["x"], entry["y"], entry["x"]+w, entry["y"]+h))
+		}
+		return regions, nil
+	case []interface{}:
+		regions := make([]image.Rectangle, 0, len(list))
+		for _, item := range list {
+			entry, ok := item.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("expected object in '%s'", key)
+			}
+			x, ok := asInt(entry["x"])
+			if !ok {
+				return nil, fmt.Errorf("expected integer x in '%s'", key)
+			}
+			y, ok := asInt(entry["y"])
+			if !ok {
+				return nil, fmt.Errorf("expected integer y in '%s'", key)
+			}
+			w, ok := asInt(entry["w"])
+			if !ok {
+				return nil, fmt.Errorf("expected integer w in '%s'", key)
+			}
+			h, ok := asInt(entry["h"])
+			if !ok {
+				return nil, fmt.Errorf("expected integer h in '%s'", key)
+			}
+			if w <= 0 || h <= 0 {
+				continue
+			}
+			regions = append(regions, image.Rect(x, y, x+w, y+h))
+		}
+		return regions, nil
+	default:
+		return nil, fmt.Errorf("expected array '%s'", key)
 	}
 }
 
