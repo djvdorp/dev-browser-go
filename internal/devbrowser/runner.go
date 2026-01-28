@@ -3,6 +3,7 @@ package devbrowser
 import (
 	"errors"
 	"fmt"
+	"image"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -366,8 +367,6 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 			res["css_path"] = cssPath
 		}
 		return res, nil
-	case "visual_diff":
-		return runVisualDiff(page, args, artifactDir)
 	case "save_html":
 		includeHTML, err := optionalBool(args, "include_html", true)
 		if err != nil {
@@ -582,27 +581,30 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		}
 
 		res := RunResult{
-			"path":           path,
-			"html":           snapshot.HTML,
-			"assets_count":   snapshot.AssetCount,
-			"assets_inline":  snapshot.InlineCount,
-			"assets_linked":  snapshot.LinkedCount,
-			"stripped":       stripScripts,
+			"path":          path,
+			"html":          snapshot.HTML,
+			"assets_count":  snapshot.AssetCount,
+			"assets_inline": snapshot.InlineCount,
+			"assets_linked": snapshot.LinkedCount,
+			"stripped":      stripScripts,
 		}
 		return res, nil
 
 	case "visual_diff":
-		baselinePath, err := requireString(args, "baseline_path")
+		baselineArg, err := requireString(args, "baseline_path")
 		if err != nil {
 			return nil, err
 		}
-		outputPath, err := optionalString(args, "output_path", "")
+		outputArg, err := optionalString(args, "output_path", "")
 		if err != nil {
 			return nil, err
 		}
 		tolerance, err := optionalFloat(args, "tolerance", 0.1)
 		if err != nil {
 			return nil, err
+		}
+		if tolerance < 0 || tolerance > 1 {
+			return nil, fmt.Errorf("tolerance must be between 0 and 1")
 		}
 		pixelThreshold, err := optionalInt(args, "pixel_threshold", 10)
 		if err != nil {
@@ -612,20 +614,56 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		if err != nil {
 			return nil, err
 		}
-
-		diffResult, err := compareScreenshots(page, baselinePath, outputPath, tolerance, pixelThreshold, highlight)
+		ignoreRegions, err := optionalIgnoreRegions(args, "ignore_regions")
 		if err != nil {
 			return nil, err
 		}
 
-		return RunResult{
-			"passed":         diffResult.Passed,
+		baselinePath, err := resolveInputPath(artifactDir, baselineArg)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(baselinePath) == "" {
+			return nil, errors.New("baseline path is required")
+		}
+
+		outputPath := ""
+		if strings.TrimSpace(outputArg) != "" {
+			outputPath, err = SafeArtifactPath(artifactDir, outputArg, outputArg)
+			if err != nil {
+				return nil, err
+			}
+		} else if highlight {
+			outputPath, err = SafeArtifactPath(artifactDir, "", fmt.Sprintf("diff-%d.png", NowMS()))
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		diffResult, err := compareScreenshots(page, baselinePath, outputPath, tolerance, pixelThreshold, highlight, ignoreRegions)
+		if err != nil {
+			return nil, err
+		}
+
+		res := RunResult{
+			"passed":           diffResult.Passed,
 			"different_pixels": diffResult.DifferentPixels,
-			"diff_percentage": diffResult.DiffPercentage,
-			"baseline_path":  baselinePath,
-			"output_path":    outputPath,
-			"tolerance":      tolerance,
-		}, nil
+			"diff_percentage":  diffResult.DiffPercentage,
+			"baseline_path":    baselinePath,
+			"tolerance":        tolerance,
+			"pixel_threshold":  pixelThreshold,
+			"highlight":        highlight,
+		}
+		if diffResult.OutputPath != "" {
+			res["output_path"] = diffResult.OutputPath
+		}
+		if len(ignoreRegions) > 0 {
+			res["ignored_regions"] = len(ignoreRegions)
+		}
+		return res, nil
+
+	case "diff_images":
+		return runDiffImages(page, args, artifactDir)
 
 	case "save_baseline":
 		pathArg, err := requireString(args, "path")
@@ -944,6 +982,57 @@ func asInt(v interface{}) (int, bool) {
 		return int(t), true
 	default:
 		return 0, false
+	}
+}
+
+func optionalIgnoreRegions(args map[string]interface{}, key string) ([]image.Rectangle, error) {
+	raw, ok := args[key]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+	switch list := raw.(type) {
+	case []map[string]int:
+		regions := make([]image.Rectangle, 0, len(list))
+		for _, entry := range list {
+			w := entry["w"]
+			h := entry["h"]
+			if w <= 0 || h <= 0 {
+				continue
+			}
+			regions = append(regions, image.Rect(entry["x"], entry["y"], entry["x"]+w, entry["y"]+h))
+		}
+		return regions, nil
+	case []interface{}:
+		regions := make([]image.Rectangle, 0, len(list))
+		for _, item := range list {
+			entry, ok := item.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("expected object in '%s'", key)
+			}
+			x, ok := asInt(entry["x"])
+			if !ok {
+				return nil, fmt.Errorf("expected integer x in '%s'", key)
+			}
+			y, ok := asInt(entry["y"])
+			if !ok {
+				return nil, fmt.Errorf("expected integer y in '%s'", key)
+			}
+			w, ok := asInt(entry["w"])
+			if !ok {
+				return nil, fmt.Errorf("expected integer w in '%s'", key)
+			}
+			h, ok := asInt(entry["h"])
+			if !ok {
+				return nil, fmt.Errorf("expected integer h in '%s'", key)
+			}
+			if w <= 0 || h <= 0 {
+				continue
+			}
+			regions = append(regions, image.Rect(x, y, x+w, y+h))
+		}
+		return regions, nil
+	default:
+		return nil, fmt.Errorf("expected array '%s'", key)
 	}
 }
 

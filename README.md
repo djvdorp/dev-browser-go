@@ -123,6 +123,7 @@ Note: device profiles use Playwright names; device/viewport flags apply when the
 | `inject` | Inject JavaScript or CSS into page |
 | `asset-snapshot` | Save HTML with linked assets for offline review |
 | `visual-diff` | Compare current screenshot against baseline |
+| `diff-images` | Capture before/after screenshots and save diff image |
 | `save-baseline` | Save current page state as visual baseline |
 | `devices` | List device profile names |
 | `wait` | Wait for page state |
@@ -301,12 +302,14 @@ dev-browser-go asset-snapshot --path test-fixture.html --strip-scripts --asset-t
 # Only CSS (no JS/images)
 dev-browser-go asset-snapshot --path minimal.html --asset-types css
 
-# Increase inline threshold (embed more assets)
+# Inline threshold (reserved for future inlining)
 dev-browser-go asset-snapshot --path big.html --inline-threshold 51200
 
 # Deeper scan
 dev-browser-go asset-snapshot --path deep.html --max-depth 5
 ```
+
+Note: asset snapshot preserves original asset URLs; assets are not fetched/embedded yet. Use `--no-include-assets` to skip asset discovery.
 
 ### Visual Diff / Regression Testing
 
@@ -343,6 +346,12 @@ dev-browser-go save-baseline --path baselines/button.png \
 # Compare (ignoring dynamic content nearby)
 dev-browser-go visual-diff --baseline baselines/button.png \
   --ignore 100,0,200,50 # Ignore region with timestamp
+```
+
+**Quick before/after diff (no baseline storage):**
+```bash
+dev-browser-go diff-images --after-wait-ms 1000 --threshold 5 --output json
+dev-browser-go diff-images --before baseline.png --after latest.png --diff-path diff.png
 ```
 
 **Tuning diff sensitivity:**
@@ -390,6 +399,13 @@ dev-browser-go save-baseline --path baseline.png
 dev-browser-go visual-diff --baseline baseline.png --output diff.png --pixel-threshold 5
 ```
 
+Diff images (before/after):
+```bash
+dev-browser-go goto https://example.com
+dev-browser-go diff-images --after-wait-ms 1000 --threshold 5 --output json
+dev-browser-go diff-images --before baseline.png --after latest.png --diff-path diff.png
+```
+
 For detailed workflow examples, see [SKILL.md](SKILL.md).
 
 ## Integration with Codex
@@ -407,6 +423,11 @@ Available commands:
 - dev-browser-go screenshot
 - dev-browser-go style-capture
 - dev-browser-go visual-diff
+- dev-browser-go diff-images
+- dev-browser-go save-baseline
+- dev-browser-go js-eval
+- dev-browser-go inject
+- dev-browser-go asset-snapshot
 - dev-browser-go press <key>
 - dev-browser-go console [--since <id>] [--limit <n>] [--level <lvl> ...]
 ```
@@ -421,6 +442,11 @@ Available commands:
 - `screenshot` - save screenshot
 - `style-capture` - capture computed styles (inline or bundled CSS)
 - `visual-diff` - compare current screenshot against baseline
+- `diff-images` - capture before/after screenshots and save diff image
+- `save-baseline` - save current page state as baseline
+- `js-eval` - evaluate JavaScript in page context
+- `inject` - inject JavaScript or CSS into page
+- `asset-snapshot` - save HTML with linked assets for offline review
 - `bounds` - get element bounds (selector/ARIA)
 - `console` - read page console logs (default levels: info,warning,error; repeatable `--level`)
 - `save-html` - save page HTML

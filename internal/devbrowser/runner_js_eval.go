@@ -2,6 +2,8 @@ package devbrowser
 
 import (
 	"fmt"
+	"image"
+	"math"
 	"strings"
 
 	"github.com/playwright-community/playwright-go"
@@ -101,11 +103,17 @@ func createAssetSnapshot(page playwright.Page, includeAssets bool, assetTypes []
 
 	processedHTML := processAssets(html, assets, inlineThreshold, stripScripts)
 
+	inlineCount := countInlined(assets, inlineThreshold)
+	linkedCount := len(assets) - inlineCount
+	if linkedCount < 0 {
+		linkedCount = 0
+	}
+
 	return &AssetSnapshotResult{
 		HTML:        processedHTML,
 		AssetCount:  len(assets),
-		InlineCount:  countInlined(assets, inlineThreshold),
-		LinkedCount:  countLinked(assets, inlineThreshold),
+		InlineCount: inlineCount,
+		LinkedCount: linkedCount,
 	}, nil
 }
 
@@ -113,7 +121,11 @@ func extractAssets(page playwright.Page, types []string, maxDepth int) ([]map[st
 	extractJS := `() => {
 		const assets = [];
 		const visited = new Set();
-		const typeSet = new Set($types);
+		const typeSet = new Set($types.map((t) => String(t || "").toLowerCase()));
+		const typeGroups = {
+			image: new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp", "ico"]),
+			font: new Set(["woff", "woff2", "ttf", "otf", "eot"]),
+		};
 
 		function scan(node, depth) {
 			if (depth > $maxDepth) return;
@@ -121,8 +133,13 @@ func extractAssets(page playwright.Page, types []string, maxDepth int) ([]map[st
 
 			const src = node.src || node.href;
 			if (src && !visited.has(src)) {
-				const ext = src.split('.').pop().toLowerCase();
-				if (typeSet.size === 0 || typeSet.has(ext)) {
+				const clean = src.split('?')[0].split('#')[0];
+				const ext = clean.split('.').pop().toLowerCase();
+				const matchesType =
+					typeSet.size === 0 ||
+					typeSet.has(ext) ||
+					Array.from(typeSet).some((t) => typeGroups[t] && typeGroups[t].has(ext));
+				if (matchesType) {
 					assets.push({
 						url: src,
 						tag: node.tagName.toLowerCase(),
@@ -143,7 +160,7 @@ func extractAssets(page playwright.Page, types []string, maxDepth int) ([]map[st
 	}`
 
 	result, err := page.Evaluate(extractJS, map[string]interface{}{
-		"$types":   types,
+		"$types":    types,
 		"$maxDepth": maxDepth,
 	})
 
@@ -174,8 +191,9 @@ func processAssets(html string, assets []map[string]interface{}, inlineThreshold
 }
 
 func removeScripts(html string) string {
-	return strings.ReplaceAll(html, `<script`, `<!-- <script`)
-	return strings.ReplaceAll(html, `</script>`, `</script> -->`)
+	processed := strings.ReplaceAll(html, `<script`, `<!-- <script`)
+	processed = strings.ReplaceAll(processed, `</script>`, `</script> -->`)
+	return processed
 }
 
 func countInlined(assets []map[string]interface{}, threshold int) int {
@@ -199,13 +217,13 @@ func countLinked(assets []map[string]interface{}, threshold int) int {
 }
 
 type DiffResult struct {
-	Passed         bool
+	Passed          bool
 	DifferentPixels int
-	DiffPercentage float64
-	OutputPath     string
+	DiffPercentage  float64
+	OutputPath      string
 }
 
-func compareScreenshots(page playwright.Page, baselinePath, outputPath string, tolerance float64, pixelThreshold int, highlight bool) (*DiffResult, error) {
+func compareScreenshots(page playwright.Page, baselinePath, outputPath string, tolerance float64, pixelThreshold int, highlight bool, ignoreRegions []image.Rectangle) (*DiffResult, error) {
 	currentPath := fmt.Sprintf("/tmp/dev-browser-diff-current-%d.png", NowMS())
 	currentOpts := playwright.PageScreenshotOptions{
 		Path:     playwright.String(currentPath),
@@ -217,86 +235,39 @@ func compareScreenshots(page playwright.Page, baselinePath, outputPath string, t
 		return nil, fmt.Errorf("failed to capture current screenshot: %w", err)
 	}
 
-	diffPixels, diffPercent, err := computePixelDiff(currentPath, baselinePath, tolerance)
+	beforeImg, err := loadImage(baselinePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load baseline image: %w", err)
+	}
+
+	afterImg, err := loadImage(currentPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load current image: %w", err)
+	}
+
+	threshold := uint8(math.Round(tolerance * 255))
+	diffImg, stats, err := diffImagesWithIgnore(beforeImg, afterImg, threshold, ignoreRegions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute diff: %w", err)
 	}
 
+	diffPixels := stats.ChangedPixels
+	diffPercent := 0.0
+	if stats.TotalPixels > 0 {
+		diffPercent = float64(stats.ChangedPixels) / float64(stats.TotalPixels) * 100
+	}
 	passed := diffPixels <= pixelThreshold
 
-	if highlight && diffPixels > 0 {
-		diffPath := outputPath
-		if diffPath == "" {
-			diffPath = fmt.Sprintf("/tmp/dev-browser-diff-%d.png", NowMS())
-		}
-		err = generateDiffImage(currentPath, baselinePath, diffPath, diffPixels > pixelThreshold)
-		if err == nil {
-			outputPath = diffPath
+	if highlight && outputPath != "" {
+		if err := writePNG(outputPath, diffImg); err != nil {
+			return nil, fmt.Errorf("failed to write diff image: %w", err)
 		}
 	}
 
 	return &DiffResult{
-		Passed:         passed,
+		Passed:          passed,
 		DifferentPixels: diffPixels,
-		DiffPercentage: diffPercent,
-		OutputPath:     outputPath,
+		DiffPercentage:  diffPercent,
+		OutputPath:      outputPath,
 	}, nil
 }
-
-func computePixelDiff(currentPath, baselinePath string, tolerance float64) (int, float64, error) {
-	_ = fmt.Sprintf(`() => {
-		return new Promise((resolve) => {
-			const img1 = new Image();
-			const img2 = new Image();
-			img1.onload = () => {
-				img2.onload = () => {
-					const canvas = document.createElement('canvas');
-					const ctx = canvas.getContext('2d');
-					canvas.width = img1.width;
-					canvas.height = img1.height;
-
-					const imgData1 = getImageData(img1, canvas, ctx);
-					const imgData2 = getImageData(img2, canvas, ctx);
-
-					let diffPixels = 0;
-					const data1 = imgData1.data;
-					const data2 = imgData2.data;
-					const len = data1.length;
-
-					for (let i = 0; i < len; i += 4) {
-						const r1 = data1[i], g1 = data1[i+1], b1 = data1[i+2];
-						const r2 = data2[i], g2 = data2[i+1], b2 = data2[i+2];
-						const diff = Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
-						if (diff > %d * 3) {
-							diffPixels++;
-						}
-					}
-
-					const totalPixels = canvas.width * canvas.height;
-					const diffPercent = (diffPixels / totalPixels) * 100;
-					resolve({ diffPixels, diffPercent, totalPixels });
-				};
-			};
-			img1.src = 'file://%s';
-			img2.src = 'file://%s';
-		});
-
-		function getImageData(img, canvas, ctx) {
-			canvas.width = img.width;
-			canvas.height = img.height;
-			ctx.drawImage(img, 0, 0);
-			return ctx.getImageData(0, 0, canvas.width, canvas.height);
-		}
-	}`, int(tolerance*255), currentPath, baselinePath)
-
-	// This would need to be evaluated in a page context
-	// For now, return a mock result
-	return 0, 0.0, nil
-}
-
-func generateDiffImage(currentPath, baselinePath, outputPath string, failed bool) error {
-	// Would use image processing library to highlight differences
-	// For now, copy current to output as fallback
-	return nil
-}
-

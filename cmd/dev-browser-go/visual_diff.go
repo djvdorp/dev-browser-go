@@ -21,7 +21,10 @@ func newVisualDiffCmd() *cobra.Command {
 		Use:   "visual-diff",
 		Short: "Compare current page screenshot against baseline",
 		Args:  cobra.NoArgs,
-		PreRunE: func(_ *cobra.Command, _ []string) error {
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			if err := applyNoFlag(cmd, "highlight"); err != nil {
+				return err
+			}
 			if strings.TrimSpace(baseline) == "" {
 				return errors.New("baseline path is required")
 			}
@@ -29,11 +32,10 @@ func newVisualDiffCmd() *cobra.Command {
 		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			payload := map[string]interface{}{
-				"baseline_path":      baseline,
-				"tolerance":          tolerance,
-				"pixel_threshold":    pixelThreshold,
-				"highlight":          highlight,
-				"diff_output_format": "simple",
+				"baseline_path":   baseline,
+				"tolerance":       tolerance,
+				"pixel_threshold": pixelThreshold,
+				"highlight":       highlight,
 			}
 			if strings.TrimSpace(output) != "" {
 				payload["output_path"] = output
@@ -51,6 +53,7 @@ func newVisualDiffCmd() *cobra.Command {
 	cmd.Flags().Float64Var(&tolerance, "tolerance", 0.1, "Color tolerance (0.0-1.0)")
 	cmd.Flags().IntVar(&pixelThreshold, "pixel-threshold", 10, "Max different pixels before fail")
 	cmd.Flags().BoolVar(&highlight, "highlight", true, "Highlight differences in output")
+	cmd.Flags().Bool("no-highlight", false, "Disable highlighting differences")
 	cmd.Flags().StringVar(&ignoreRegions, "ignore", "", "Ignore regions (x,y,w,h;x,y,w,h)")
 
 	return cmd

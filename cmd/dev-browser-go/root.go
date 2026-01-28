@@ -43,6 +43,7 @@ func init() {
 		newScreenshotCmd(),
 		newStyleCaptureCmd(),
 		newVisualDiffCmd(),
+		newDiffImagesCmd(),
 		newSaveBaselineCmd(),
 		newBoundsCmd(),
 		newConsoleCmd(),

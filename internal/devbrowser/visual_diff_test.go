@@ -55,6 +55,23 @@ func TestDiffImagesSizeMismatch(t *testing.T) {
 	}
 }
 
+func TestDiffImagesWithIgnore(t *testing.T) {
+	before := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	after := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	fillRGBA(before, color.RGBA{R: 10, G: 20, B: 30, A: 255})
+	fillRGBA(after, color.RGBA{R: 10, G: 20, B: 30, A: 255})
+	after.SetRGBA(1, 1, color.RGBA{R: 200, G: 10, B: 10, A: 255})
+
+	ignore := []image.Rectangle{image.Rect(1, 1, 2, 2)}
+	_, stats, err := diffImagesWithIgnore(before, after, 0, ignore)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stats.ChangedPixels != 0 {
+		t.Fatalf("expected 0 changed pixels, got %d", stats.ChangedPixels)
+	}
+}
+
 func fillRGBA(img *image.RGBA, c color.RGBA) {
 	b := img.Bounds()
 	for y := b.Min.Y; y < b.Max.Y; y++ {

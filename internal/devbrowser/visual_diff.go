@@ -113,6 +113,66 @@ func diffImages(before, after image.Image, threshold uint8) (*image.RGBA, DiffSt
 	}, nil
 }
 
+func diffImagesWithIgnore(before, after image.Image, threshold uint8, ignoreRegions []image.Rectangle) (*image.RGBA, DiffStats, error) {
+	if before == nil || after == nil {
+		return nil, DiffStats{}, errors.New("images are required")
+	}
+	beforeBounds := before.Bounds()
+	afterBounds := after.Bounds()
+	if beforeBounds.Dx() != afterBounds.Dx() || beforeBounds.Dy() != afterBounds.Dy() {
+		return nil, DiffStats{}, fmt.Errorf(
+			"image sizes differ (before %dx%d, after %dx%d)",
+			beforeBounds.Dx(),
+			beforeBounds.Dy(),
+			afterBounds.Dx(),
+			afterBounds.Dy(),
+		)
+	}
+
+	width := beforeBounds.Dx()
+	height := beforeBounds.Dy()
+	diff := image.NewRGBA(image.Rect(0, 0, width, height))
+	changed := 0
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if pointIgnored(x, y, ignoreRegions) {
+				ac := rgba8(after.At(afterBounds.Min.X+x, afterBounds.Min.Y+y))
+				diff.SetRGBA(x, y, ac)
+				continue
+			}
+			bc := rgba8(before.At(beforeBounds.Min.X+x, beforeBounds.Min.Y+y))
+			ac := rgba8(after.At(afterBounds.Min.X+x, afterBounds.Min.Y+y))
+			if pixelDelta(bc, ac) > threshold {
+				changed++
+				diff.SetRGBA(x, y, highlightPixel(ac))
+			} else {
+				diff.SetRGBA(x, y, ac)
+			}
+		}
+	}
+
+	return diff, DiffStats{
+		ChangedPixels: changed,
+		TotalPixels:   width * height,
+		Width:         width,
+		Height:        height,
+	}, nil
+}
+
+func pointIgnored(x, y int, regions []image.Rectangle) bool {
+	if len(regions) == 0 {
+		return false
+	}
+	pt := image.Pt(x, y)
+	for _, region := range regions {
+		if pt.In(region) {
+			return true
+		}
+	}
+	return false
+}
+
 func rgba8(c color.Color) color.RGBA {
 	r, g, b, a := c.RGBA()
 	return color.RGBA{

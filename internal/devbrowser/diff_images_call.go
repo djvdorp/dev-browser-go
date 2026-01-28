@@ -9,7 +9,7 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
-func runVisualDiff(page playwright.Page, args map[string]interface{}, artifactDir string) (RunResult, error) {
+func runDiffImages(page playwright.Page, args map[string]interface{}, artifactDir string) (RunResult, error) {
 	beforeArg, err := optionalString(args, "before_path", "")
 	if err != nil {
 		return nil, err

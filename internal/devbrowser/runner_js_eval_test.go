@@ -1,6 +1,7 @@
 package devbrowser
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -94,6 +95,17 @@ func TestCountLinked(t *testing.T) {
 	count := countLinked(assets, 10240)
 	if count != 2 {
 		t.Errorf("countLinked() = %d, want 2", count)
+	}
+}
+
+func TestRemoveScripts(t *testing.T) {
+	input := `<div><script>alert("x")</script><p>ok</p></div>`
+	got := removeScripts(input)
+	if !strings.Contains(got, "<!-- <script") {
+		t.Fatalf("expected script tag to be commented")
+	}
+	if !strings.Contains(got, "</script> -->") {
+		t.Fatalf("expected script closing tag to be commented")
 	}
 }
 

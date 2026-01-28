@@ -19,6 +19,8 @@ var boolFlagRules = []boolFlagRule{
 	{name: "annotate-refs", hasNo: false},
 	{name: "strip", hasNo: true},
 	{name: "include-all", hasNo: false},
+	{name: "include-assets", hasNo: true},
+	{name: "highlight", hasNo: true},
 }
 
 func rejectBoolEqualsArgs(args []string) error {

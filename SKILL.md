@@ -91,6 +91,9 @@ dev-browser-go style-capture --mode bundle --css-path styles.css --selector ".pa
 dev-browser-go js-eval --expr "document.title"  # Evaluate JavaScript
 dev-browser-go js-eval --selector ".btn" --expr "this.textContent"
 dev-browser-go asset-snapshot --path offline.html  # Save with assets
+dev-browser-go save-baseline --path baseline.png   # Save visual baseline
+dev-browser-go visual-diff --baseline baseline.png # Compare against baseline
+dev-browser-go diff-images --after-wait-ms 1000 --threshold 5
 ```
 
 ### Interaction
@@ -161,6 +164,8 @@ dev-browser-go asset-snapshot --path offline.html \
 # Share with team for offline review
 ```
 
+Note: asset snapshot keeps original asset URLs; assets are not fetched/embedded yet. Use `--no-include-assets` to skip discovery.
+
 ### Visual Diff / Regression Testing
 ```bash
 # Save baseline
@@ -172,6 +177,10 @@ dev-browser-go visual-diff --baseline baseline.png \
   --output diff.png \
   --tolerance 0.05 \
   --pixel-threshold 5
+
+# Quick before/after diff (no baseline storage)
+dev-browser-go diff-images --after-wait-ms 1000 --threshold 5 --output json
+dev-browser-go diff-images --before baseline.png --after latest.png --diff-path diff.png
 
 # Element-level regression testing
 dev-browser-go save-baseline --path button-baseline.png \

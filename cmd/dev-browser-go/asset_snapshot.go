@@ -19,12 +19,15 @@ func newAssetSnapshotCmd() *cobra.Command {
 		Use:   "asset-snapshot",
 		Short: "Save HTML with linked assets for offline review",
 		Args:  cobra.NoArgs,
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			return applyNoFlag(cmd, "include-assets")
+		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			payload := map[string]interface{}{
-				"include_assets":    includeAssets,
-				"max_depth":         maxDepth,
-				"strip_scripts":     stripScripts,
-				"inline_threshold":  inlineThreshold,
+				"include_assets":   includeAssets,
+				"max_depth":        maxDepth,
+				"strip_scripts":    stripScripts,
+				"inline_threshold": inlineThreshold,
 			}
 			if strings.TrimSpace(pathArg) != "" {
 				payload["path"] = pathArg
@@ -38,7 +41,8 @@ func newAssetSnapshotCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&pageName, "page", "main", "Page name")
 	cmd.Flags().StringVar(&pathArg, "path", "", "Output HTML path")
-	cmd.Flags().BoolVar(&includeAssets, "include-assets", true, "Download and link assets")
+	cmd.Flags().BoolVar(&includeAssets, "include-assets", true, "Discover and keep asset links")
+	cmd.Flags().Bool("no-include-assets", false, "Skip asset discovery")
 	cmd.Flags().StringVar(&assetTypes, "asset-types", "css,js,font,image", "Asset types to download")
 	cmd.Flags().IntVar(&maxDepth, "max-depth", 2, "Max depth for asset discovery")
 	cmd.Flags().BoolVar(&stripScripts, "strip-scripts", false, "Remove script tags")

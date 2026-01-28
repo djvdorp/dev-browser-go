@@ -22,7 +22,10 @@ func newSaveBaselineCmd() *cobra.Command {
 		Use:   "save-baseline",
 		Short: "Save current page state as visual baseline",
 		Args:  cobra.NoArgs,
-		PreRunE: func(_ *cobra.Command, _ []string) error {
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			if err := applyNoFlag(cmd, "full-page"); err != nil {
+				return err
+			}
 			if strings.TrimSpace(pathArg) == "" {
 				return errors.New("--path is required")
 			}
@@ -59,6 +62,7 @@ func newSaveBaselineCmd() *cobra.Command {
 	cmd.Flags().StringVar(&pageName, "page", "main", "Page name")
 	cmd.Flags().StringVar(&pathArg, "path", "", "Output path (required)")
 	cmd.Flags().BoolVar(&fullPage, "full-page", true, "Full page screenshot")
+	cmd.Flags().Bool("no-full-page", false, "Disable full page screenshot")
 	cmd.Flags().StringVar(&selector, "selector", "", "CSS selector for element capture")
 	cmd.Flags().StringVar(&ariaRole, "aria-role", "", "ARIA role for element capture")
 	cmd.Flags().StringVar(&ariaName, "aria-name", "", "ARIA name for element capture")
