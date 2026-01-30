@@ -546,6 +546,90 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 
 		return RunResult{"injected": injected}, nil
 
+	case "network_monitor":
+		waitState, err := optionalString(args, "wait_state", "networkidle")
+		if err != nil {
+			return nil, err
+		}
+		timeoutMs, err := optionalInt(args, "timeout_ms", 45_000)
+		if err != nil {
+			return nil, err
+		}
+		minWaitMs, err := optionalInt(args, "min_wait_ms", 0)
+		if err != nil {
+			return nil, err
+		}
+		maxEntries, err := optionalInt(args, "max_entries", 200)
+		if err != nil {
+			return nil, err
+		}
+		includeBodies, err := optionalBool(args, "include_bodies", false)
+		if err != nil {
+			return nil, err
+		}
+		includeHeaders, err := optionalBool(args, "include_headers", true)
+		if err != nil {
+			return nil, err
+		}
+		maxBodyBytes, err := optionalInt(args, "max_body_bytes", 64*1024)
+		if err != nil {
+			return nil, err
+		}
+		urlContains, err := optionalString(args, "url_contains", "")
+		if err != nil {
+			return nil, err
+		}
+		method, err := optionalString(args, "method", "")
+		if err != nil {
+			return nil, err
+		}
+		typeEquals, err := optionalString(args, "type", "")
+		if err != nil {
+			return nil, err
+		}
+		statusEquals, err := optionalInt(args, "status", 0)
+		if err != nil {
+			return nil, err
+		}
+		statusMin, err := optionalInt(args, "status_min", 0)
+		if err != nil {
+			return nil, err
+		}
+		statusMax, err := optionalInt(args, "status_max", 0)
+		if err != nil {
+			return nil, err
+		}
+		onlyFailed, err := optionalBool(args, "only_failed", false)
+		if err != nil {
+			return nil, err
+		}
+
+		summary, _ := CollectNetwork(page, NetworkMonitorOptions{
+			WaitStrategy:   "playwright",
+			WaitState:      waitState,
+			TimeoutMs:      timeoutMs,
+			MinWaitMs:      minWaitMs,
+			MaxEntries:     maxEntries,
+			IncludeBodies:  includeBodies,
+			MaxBodyBytes:   maxBodyBytes,
+			URLContains:    urlContains,
+			MethodEquals:   method,
+			TypeEquals:     typeEquals,
+			StatusEquals:   statusEquals,
+			StatusMin:      statusMin,
+			StatusMax:      statusMax,
+			OnlyFailed:     onlyFailed,
+			IncludeHeaders: includeHeaders,
+		})
+
+		return RunResult{
+			"entries":    summary.Entries,
+			"total":      summary.Total,
+			"matched":    summary.Matched,
+			"truncated":  summary.Truncated,
+			"wait_state": waitState,
+		}, nil
+
 	case "asset_snapshot":
 		pathArg, err := optionalString(args, "path", "")
 		if err != nil {

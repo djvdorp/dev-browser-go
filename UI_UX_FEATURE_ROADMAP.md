@@ -18,11 +18,11 @@ Features needed to make `dev-browser-go` feature-complete for UI/UX development 
 - [ ] Multi-line script support (workaround: use `inject --file` for larger scripts)
 
 ### 3. Network Monitor
-- [ ] List network requests (URL, method, status)
-- [ ] View request headers and payload
-- [ ] View response headers and body
-- [ ] Filter by request type/status
-- [ ] Search/filter by URL
+- [x] List network requests (URL, method, status) (`network-monitor`)
+- [x] View request headers and payload (`--headers`, `--bodies`)
+- [x] View response headers and body (`--headers`, `--bodies`)
+- [x] Filter by request type/status (`--type`, `--status`, `--status-min`, `--status-max`, `--failed`)
+- [x] Search/filter by URL (`--url-contains`)
 
 ### 4. Live DOM Inspector
 - [x] Traverse element hierarchy (parent/child/sibling) (via `snapshot --format tree`)

@@ -47,6 +47,7 @@ func init() {
 		newSaveBaselineCmd(),
 		newSaveDomBaselineCmd(),
 		newDomDiffCmd(),
+		newNetworkMonitorCmd(),
 		newBoundsCmd(),
 		newConsoleCmd(),
 		newSaveHTMLCmd(),

@@ -124,6 +124,7 @@ Note: device profiles use Playwright names; device/viewport flags apply when the
 | `asset-snapshot` | Save HTML with linked assets for offline review |
 | `save-dom-baseline` | Save a DOM snapshot baseline (for structural diffs) |
 | `dom-diff` | Compare current DOM snapshot against a baseline |
+| `network-monitor` | Capture network requests/responses (headers/bodies/filtering) |
 | `visual-diff` | Compare current screenshot against baseline |
 | `diff-images` | Capture before/after screenshots and save diff image |
 | `save-baseline` | Save current page state as visual baseline |
@@ -213,6 +214,24 @@ dev-browser-go save-dom-baseline --path baseline.dom.json
 Compare current DOM structure:
 ```bash
 dev-browser-go dom-diff --baseline baseline.dom.json --output json
+```
+
+### Network Monitor
+
+Capture network activity for the current page:
+
+```bash
+# Basic: list requests (url/method/status)
+dev-browser-go network-monitor --output json
+
+# Filter by URL substring and only failures
+dev-browser-go network-monitor --url-contains "/api/" --failed --output json
+
+# Include headers and bodies (truncated per --max-body-bytes)
+dev-browser-go network-monitor --bodies --max-body-bytes 32768 --output json
+
+# Filter by status range
+dev-browser-go network-monitor --status-min 400 --status-max 599 --output json
 ```
 
 Element-level baseline:
