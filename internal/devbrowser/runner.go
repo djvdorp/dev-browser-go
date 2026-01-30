@@ -671,6 +671,72 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 	case "diff_images":
 		return runDiffImages(page, args, artifactDir)
 
+	case "save_dom_baseline":
+		pathArg, err := requireString(args, "path")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		maxItems, err := optionalInt(args, "max_items", 200)
+		if err != nil {
+			return nil, err
+		}
+
+		path, err := SafeArtifactPath(artifactDir, pathArg, pathArg)
+		if err != nil {
+			return nil, err
+		}
+		snap, err := CaptureDomSnapshot(page, engine, maxItems)
+		if err != nil {
+			return nil, err
+		}
+		if err := WriteDomSnapshot(path, snap); err != nil {
+			return nil, err
+		}
+		return RunResult{"path": path, "dom_baseline_saved": true, "engine": snap.Engine, "items": len(snap.Items)}, nil
+
+	case "dom_diff":
+		baselineArg, err := requireString(args, "baseline_path")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		maxItems, err := optionalInt(args, "max_items", 200)
+		if err != nil {
+			return nil, err
+		}
+
+		baselinePath, err := resolveInputPath(artifactDir, baselineArg)
+		if err != nil {
+			return nil, err
+		}
+		before, err := ReadDomSnapshot(baselinePath)
+		if err != nil {
+			return nil, err
+		}
+		after, err := CaptureDomSnapshot(page, engine, maxItems)
+		if err != nil {
+			return nil, err
+		}
+		diff := DiffDomSnapshots(before, after)
+		return RunResult{
+			"baseline_path": baselinePath,
+			"engine":        engine,
+			"max_items":     maxItems,
+			"added":         diff.Added,
+			"removed":       diff.Removed,
+			"changed":       diff.Changed,
+			"added_count":   diff.AddedCount,
+			"removed_count": diff.RemovedCount,
+			"changed_count": diff.ChangedCount,
+		}, nil
+
 	case "save_baseline":
 		pathArg, err := requireString(args, "path")
 		if err != nil {

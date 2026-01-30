@@ -45,6 +45,8 @@ func init() {
 		newVisualDiffCmd(),
 		newDiffImagesCmd(),
 		newSaveBaselineCmd(),
+		newSaveDomBaselineCmd(),
+		newDomDiffCmd(),
 		newBoundsCmd(),
 		newConsoleCmd(),
 		newSaveHTMLCmd(),

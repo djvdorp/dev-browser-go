@@ -122,6 +122,8 @@ Note: device profiles use Playwright names; device/viewport flags apply when the
 | `js-eval` | Evaluate JavaScript and return results |
 | `inject` | Inject JavaScript or CSS into page |
 | `asset-snapshot` | Save HTML with linked assets for offline review |
+| `save-dom-baseline` | Save a DOM snapshot baseline (for structural diffs) |
+| `dom-diff` | Compare current DOM snapshot against a baseline |
 | `visual-diff` | Compare current screenshot against baseline |
 | `diff-images` | Capture before/after screenshots and save diff image |
 | `save-baseline` | Save current page state as visual baseline |
@@ -189,18 +191,28 @@ dev-browser-go asset-snapshot --path offline.html \
 
 ### Visual Diff / Regression Testing
 
-Save a baseline:
+Save a visual baseline:
 ```bash
 dev-browser-go goto https://example.com
 dev-browser-go save-baseline --path baseline.png --full-page
 ```
 
-Compare current state:
+Compare current state visually:
 ```bash
 dev-browser-go visual-diff --baseline baseline.png \
   --output diff.png \
   --tolerance 0.05 \
   --pixel-threshold 5
+```
+
+Save a DOM baseline (structure):
+```bash
+dev-browser-go save-dom-baseline --path baseline.dom.json
+```
+
+Compare current DOM structure:
+```bash
+dev-browser-go dom-diff --baseline baseline.dom.json --output json
 ```
 
 Element-level baseline:

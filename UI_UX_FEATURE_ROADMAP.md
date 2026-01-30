@@ -5,17 +5,17 @@ Features needed to make `dev-browser-go` feature-complete for UI/UX development 
 ## High Priority (Core DevTools)
 
 ### 1. CSS Inspector
-- [ ] View computed styles for elements
-- [ ] Show CSS rules and inline styles
+- [x] View computed styles for elements (via `style-capture` + `js-eval getComputedStyle`)
+- [x] Show CSS rules and inline styles (via `style-capture` bundle/inline + `save-html`/`asset-snapshot`)
 - [ ] Color picker (extract hex/rgb values)
 - [ ] Font inspector (family, size, weight, line-height)
-- [ ] Box model visualization (margin, border, padding, content)
+- [x] Box model visualization (margin, border, padding, content) (via `bounds` + `js-eval getBoundingClientRect`)
 
 ### 2. JavaScript Console / REPL
-- [ ] Execute JavaScript in browser context
-- [ ] Inspect variables and objects
-- [ ] View return values
-- [ ] Multi-line script support
+- [x] Execute JavaScript in browser context (`js-eval`)
+- [x] Inspect variables and objects (`js-eval` JSON output)
+- [x] View return values (`js-eval`)
+- [ ] Multi-line script support (workaround: use `inject --file` for larger scripts)
 
 ### 3. Network Monitor
 - [ ] List network requests (URL, method, status)
@@ -25,18 +25,18 @@ Features needed to make `dev-browser-go` feature-complete for UI/UX development 
 - [ ] Search/filter by URL
 
 ### 4. Live DOM Inspector
-- [ ] Traverse element hierarchy (parent/child/sibling)
-- [ ] View element attributes
-- [ ] Get CSS selectors and XPath for elements
-- [ ] Interactive element picker (click to select)
+- [x] Traverse element hierarchy (parent/child/sibling) (via `snapshot --format tree`)
+- [x] View element attributes (via `js-eval` / DOM extraction)
+- [x] Get CSS selectors and XPath for elements (via `snapshot` refs + `js-eval` helper)
+- [ ] Interactive element picker (click to select) (native picker UI)
 
 ## Medium Priority (Enhanced Workflow)
 
 ### 5. Visual Diff / Regression Testing
-- [x] Compare screenshots against baseline
+- [x] Compare screenshots against baseline (`visual-diff`)
 - [x] Highlight differences
-- [ ] Save/update baselines
-- [ ] Compare DOM structure
+- [x] Save/update baselines (`save-baseline`)
+- [x] Compare DOM structure (`save-dom-baseline` + `dom-diff`)
 
 ### 6. Performance Metrics
 - [ ] Core Web Vitals (LCP, FID, CLS)
@@ -51,9 +51,9 @@ Features needed to make `dev-browser-go` feature-complete for UI/UX development 
 - [ ] Test selector matches
 
 ### 8. Responsive Preview
-- [ ] Quick viewport presets (mobile, tablet, desktop)
-- [ ] Custom viewport dimensions
-- [ ] Orientation toggle (portrait/landscape)
+- [x] Quick viewport presets (mobile, tablet, desktop) (`--device` + `devices`)
+- [x] Custom viewport dimensions (`--window-size WxH`)
+- [x] Orientation toggle (portrait/landscape) (via device profiles / WxH swap)
 - [ ] Side-by-side device comparison
 
 ## Nice to Have
