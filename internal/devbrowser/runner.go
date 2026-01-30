@@ -782,6 +782,70 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		}
 		return RunResult{"path": path, "dom_baseline_saved": true, "engine": snap.Engine, "items": len(snap.Items)}, nil
 
+	case "inspect_ref":
+		ref, err := requireString(args, "ref")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		styleProps, err := optionalStringSlice(args, "style_props")
+		if err != nil {
+			return nil, err
+		}
+		m, err := InspectRef(page, ref, engine, RefInspectOptions{StyleProps: styleProps})
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
+	case "test_selector":
+		selector, err := requireString(args, "selector")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		m, err := TestSelector(page, selector, engine)
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
+	case "test_xpath":
+		xpath, err := requireString(args, "xpath")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		m, err := TestXPath(page, xpath, engine)
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
+	case "perf_metrics":
+		sampleMs, err := optionalInt(args, "sample_ms", 1200)
+		if err != nil {
+			return nil, err
+		}
+		topN, err := optionalInt(args, "top_n", 20)
+		if err != nil {
+			return nil, err
+		}
+		m, err := GetPerfMetrics(page, PerfMetricsOptions{SampleMs: sampleMs, TopN: topN})
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
 	case "dom_diff":
 		baselineArg, err := requireString(args, "baseline_path")
 		if err != nil {

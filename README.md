@@ -125,6 +125,10 @@ Note: device profiles use Playwright names; device/viewport flags apply when the
 | `save-dom-baseline` | Save a DOM snapshot baseline (for structural diffs) |
 | `dom-diff` | Compare current DOM snapshot against a baseline |
 | `network-monitor` | Capture network requests/responses (headers/bodies/filtering) |
+| `inspect-ref` | Inspect a snapshot ref (attrs, selector/xpath, states, bbox) |
+| `test-selector` | Test a CSS selector (count + preview) |
+| `test-xpath` | Test an XPath expression (count + preview) |
+| `perf-metrics` | Collect performance metrics (timing/resources/CWV/FPS) |
 | `visual-diff` | Compare current screenshot against baseline |
 | `diff-images` | Capture before/after screenshots and save diff image |
 | `save-baseline` | Save current page state as visual baseline |

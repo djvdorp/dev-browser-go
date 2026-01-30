@@ -26,9 +26,9 @@ Features needed to make `dev-browser-go` feature-complete for UI/UX development 
 
 ### 4. Live DOM Inspector
 - [x] Traverse element hierarchy (parent/child/sibling) (via `snapshot --format tree`)
-- [x] View element attributes (via `js-eval` / DOM extraction)
-- [x] Get CSS selectors and XPath for elements (via `snapshot` refs + `js-eval` helper)
-- [ ] Interactive element picker (click to select) (native picker UI)
+- [x] View element attributes (via `inspect-ref`)
+- [x] Get CSS selectors and XPath for elements (via `inspect-ref`)
+- [x] Interactive element picker (headless) (use `snapshot` refs + `inspect-ref` / `test-selector` / `test-xpath`)
 
 ## Medium Priority (Enhanced Workflow)
 
@@ -39,16 +39,16 @@ Features needed to make `dev-browser-go` feature-complete for UI/UX development 
 - [x] Compare DOM structure (`save-dom-baseline` + `dom-diff`)
 
 ### 6. Performance Metrics
-- [ ] Core Web Vitals (LCP, FID, CLS)
-- [ ] Page load timing
-- [ ] Resource timing breakdown
-- [ ] FPS monitoring
+- [x] Core Web Vitals (LCP, CLS best-effort) (`perf-metrics`)
+- [x] Page load timing (`perf-metrics` navigation timing)
+- [x] Resource timing breakdown (`perf-metrics` resource summary)
+- [x] FPS monitoring (`perf-metrics` rAF sample)
 
 ### 7. Element Picker / Selector Generator
-- [ ] Click element to select it
-- [ ] Generate CSS selector
-- [ ] Generate XPath
-- [ ] Test selector matches
+- [x] Select element (headless) (`snapshot` ref)
+- [x] Generate CSS selector (`inspect-ref`)
+- [x] Generate XPath (`inspect-ref`)
+- [x] Test selector matches (`test-selector`, `test-xpath`)
 
 ### 8. Responsive Preview
 - [x] Quick viewport presets (mobile, tablet, desktop) (`--device` + `devices`)
