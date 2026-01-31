@@ -129,6 +129,8 @@ Note: device profiles use Playwright names; device/viewport flags apply when the
 | `test-selector` | Test a CSS selector (count + preview) |
 | `test-xpath` | Test an XPath expression (count + preview) |
 | `perf-metrics` | Collect performance metrics (timing/resources/CWV/FPS) |
+| `color-info` | Extract key colors for a ref (computed -> rgb/hex) |
+| `font-info` | Extract key font properties for a ref |
 | `visual-diff` | Compare current screenshot against baseline |
 | `diff-images` | Capture before/after screenshots and save diff image |
 | `save-baseline` | Save current page state as visual baseline |

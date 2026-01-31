@@ -7,8 +7,8 @@ Features needed to make `dev-browser-go` feature-complete for UI/UX development 
 ### 1. CSS Inspector
 - [x] View computed styles for elements (via `style-capture` + `js-eval getComputedStyle`)
 - [x] Show CSS rules and inline styles (via `style-capture` bundle/inline + `save-html`/`asset-snapshot`)
-- [ ] Color picker (extract hex/rgb values)
-- [ ] Font inspector (family, size, weight, line-height)
+- [x] Color picker (extract hex/rgb values) (`color-info`)
+- [x] Font inspector (family, size, weight, line-height) (`font-info`)
 - [x] Box model visualization (margin, border, padding, content) (via `bounds` + `js-eval getBoundingClientRect`)
 
 ### 2. JavaScript Console / REPL

@@ -485,6 +485,50 @@
     return { xpath: xp, count, preview };
   }
 
+  function parseColor(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+    try {
+      // Use canvas normalization to rgba.
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#000';
+      ctx.fillStyle = raw;
+      const normalized = ctx.fillStyle; // usually rgb(...) or #rrggbb
+      ctx.fillStyle = normalized;
+      ctx.fillRect(0,0,1,1);
+      const d = ctx.getImageData(0,0,1,1).data;
+      const r=d[0], g=d[1], b=d[2], a=d[3]/255;
+      const hex = '#' + [r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+      return { raw, normalized, rgb: {r,g,b}, alpha: a, hex };
+    } catch {
+      return { raw, normalized: raw };
+    }
+  }
+
+  function colorInfo(ref) {
+    const el = selectSnapshotRef(ref);
+    const cs = getComputedStyle(el);
+    const props = [
+      'color','background-color',
+      'border-top-color','border-right-color','border-bottom-color','border-left-color',
+      'outline-color'
+    ];
+    const out = { ref, colors: {} };
+    for (const p of props) out.colors[p] = parseColor(cs.getPropertyValue(p));
+    return out;
+  }
+
+  function fontInfo(ref) {
+    const el = selectSnapshotRef(ref);
+    const cs = getComputedStyle(el);
+    const props = ['font-family','font-size','font-weight','line-height','letter-spacing','font-style'];
+    const out = { ref, font: {} };
+    for (const p of props) out.font[p] = String(cs.getPropertyValue(p) || '').trim() || null;
+    return out;
+  }
+
   globalThis.__devBrowser_buildYaml = buildYaml;
   globalThis.__devBrowser_getAISnapshot = getAISnapshot;
   globalThis.__devBrowser_selectSnapshotRef = selectSnapshotRef;
@@ -493,4 +537,6 @@
   globalThis.__devBrowser_inspectRef = inspectRef;
   globalThis.__devBrowser_testSelector = testSelector;
   globalThis.__devBrowser_testXPath = testXPath;
+  globalThis.__devBrowser_colorInfo = colorInfo;
+  globalThis.__devBrowser_fontInfo = fontInfo;
 })();

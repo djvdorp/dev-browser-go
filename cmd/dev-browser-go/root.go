@@ -52,6 +52,8 @@ func init() {
 		newTestSelectorCmd(),
 		newTestXPathCmd(),
 		newPerfMetricsCmd(),
+		newColorInfoCmd(),
+		newFontInfoCmd(),
 		newBoundsCmd(),
 		newConsoleCmd(),
 		newSaveHTMLCmd(),

@@ -831,6 +831,36 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		}
 		return RunResult(m), nil
 
+	case "color_info":
+		ref, err := requireString(args, "ref")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		m, err := ColorInfo(page, ref, engine)
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
+	case "font_info":
+		ref, err := requireString(args, "ref")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		m, err := FontInfo(page, ref, engine)
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
 	case "perf_metrics":
 		sampleMs, err := optionalInt(args, "sample_ms", 1200)
 		if err != nil {
