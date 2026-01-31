@@ -63,6 +63,21 @@ dev-browser-go press Enter         # Keyboard
 
 The daemon starts automatically on first command and keeps the browser session alive.
 
+### Harness Commands (MVP)
+
+These commands are designed for autonomous agent loops and CI: structured JSON, low flake, headless-first.
+
+```bash
+# One-call diagnostic report (report-only; always exit 0)
+dev-browser-go diagnose --url http://localhost:5173 --output json
+
+# Deterministic gating (exit 0 pass, 2 fail)
+dev-browser-go assert --url http://localhost:5173 --rules @./assert.json --output json
+
+# Lite HTML validation (report-only; always exit 0)
+dev-browser-go html-validate --url http://localhost:5173 --output json
+```
+
 ### Global Flags
 
 ```
@@ -143,6 +158,9 @@ Note: device profiles use Playwright names; device/viewport flags apply when the
 | `status` | Daemon status |
 | `start` | Start daemon |
 | `stop` | Stop daemon |
+| `diagnose` | One-call “what’s broken?” report (structured JSON, artifacts) |
+| `assert` | Deterministic gating for agents/CI (exit 0 pass, 2 fail) |
+| `html-validate` | Lite HTML validator (duplicate IDs, missing alt, basic control naming) |
 
 Run `dev-browser-go <command> --help` for command-specific options.
 
