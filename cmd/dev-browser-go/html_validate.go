@@ -14,6 +14,7 @@ func newHTMLValidateCmd() *cobra.Command {
 	var waitState string
 	var timeoutMs int
 	var minWaitMs int
+	var artifactMode string
 
 	cmd := &cobra.Command{
 		Use:   "html-validate",
@@ -48,6 +49,18 @@ func newHTMLValidateCmd() *cobra.Command {
 			}
 
 			report := devbrowser.NewHTMLValidateReport(page.URL(), pageName, globalOpts.profile, time.Now(), findings)
+
+			mode := devbrowser.ArtifactMode(artifactMode)
+			if !mode.Valid() {
+				return fmt.Errorf("--artifact-mode must be none|minimal|full")
+			}
+			runDir := ""
+			if mode != devbrowser.ArtifactModeNone {
+				runID := devbrowser.NewDiagnoseRunID()
+				runDir = devbrowser.DefaultRunArtifactDir(devbrowser.ArtifactDir(globalOpts.profile), runID, time.Now())
+				_, _ = devbrowser.WriteHTMLValidateArtifacts(runDir, report, mode)
+			}
+
 			out, err := devbrowser.WriteOutput(globalOpts.profile, globalOpts.output, report, globalOpts.outPath)
 			if err != nil {
 				return err
@@ -62,6 +75,7 @@ func newHTMLValidateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&waitState, "wait", "networkidle", "Wait state (load|domcontentloaded|networkidle|commit)")
 	cmd.Flags().IntVar(&timeoutMs, "timeout-ms", 45_000, "Timeout in ms")
 	cmd.Flags().IntVar(&minWaitMs, "min-wait-ms", 250, "Minimum wait time in ms")
+	cmd.Flags().StringVar(&artifactMode, "artifact-mode", string(devbrowser.ArtifactModeNone), "Artifacts: none|minimal|full")
 
 	return cmd
 }
