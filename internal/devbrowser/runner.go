@@ -546,6 +546,90 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 
 		return RunResult{"injected": injected}, nil
 
+	case "network_monitor":
+		waitState, err := optionalString(args, "wait_state", "networkidle")
+		if err != nil {
+			return nil, err
+		}
+		timeoutMs, err := optionalInt(args, "timeout_ms", 45_000)
+		if err != nil {
+			return nil, err
+		}
+		minWaitMs, err := optionalInt(args, "min_wait_ms", 0)
+		if err != nil {
+			return nil, err
+		}
+		maxEntries, err := optionalInt(args, "max_entries", 200)
+		if err != nil {
+			return nil, err
+		}
+		includeBodies, err := optionalBool(args, "include_bodies", false)
+		if err != nil {
+			return nil, err
+		}
+		includeHeaders, err := optionalBool(args, "include_headers", true)
+		if err != nil {
+			return nil, err
+		}
+		maxBodyBytes, err := optionalInt(args, "max_body_bytes", 64*1024)
+		if err != nil {
+			return nil, err
+		}
+		urlContains, err := optionalString(args, "url_contains", "")
+		if err != nil {
+			return nil, err
+		}
+		method, err := optionalString(args, "method", "")
+		if err != nil {
+			return nil, err
+		}
+		typeEquals, err := optionalString(args, "type", "")
+		if err != nil {
+			return nil, err
+		}
+		statusEquals, err := optionalInt(args, "status", 0)
+		if err != nil {
+			return nil, err
+		}
+		statusMin, err := optionalInt(args, "status_min", 0)
+		if err != nil {
+			return nil, err
+		}
+		statusMax, err := optionalInt(args, "status_max", 0)
+		if err != nil {
+			return nil, err
+		}
+		onlyFailed, err := optionalBool(args, "only_failed", false)
+		if err != nil {
+			return nil, err
+		}
+
+		summary, _ := CollectNetwork(page, NetworkMonitorOptions{
+			WaitStrategy:   "playwright",
+			WaitState:      waitState,
+			TimeoutMs:      timeoutMs,
+			MinWaitMs:      minWaitMs,
+			MaxEntries:     maxEntries,
+			IncludeBodies:  includeBodies,
+			MaxBodyBytes:   maxBodyBytes,
+			URLContains:    urlContains,
+			MethodEquals:   method,
+			TypeEquals:     typeEquals,
+			StatusEquals:   statusEquals,
+			StatusMin:      statusMin,
+			StatusMax:      statusMax,
+			OnlyFailed:     onlyFailed,
+			IncludeHeaders: includeHeaders,
+		})
+
+		return RunResult{
+			"entries":    summary.Entries,
+			"total":      summary.Total,
+			"matched":    summary.Matched,
+			"truncated":  summary.Truncated,
+			"wait_state": waitState,
+		}, nil
+
 	case "asset_snapshot":
 		pathArg, err := optionalString(args, "path", "")
 		if err != nil {
@@ -670,6 +754,170 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 
 	case "diff_images":
 		return runDiffImages(page, args, artifactDir)
+
+	case "save_dom_baseline":
+		pathArg, err := requireString(args, "path")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		maxItems, err := optionalInt(args, "max_items", 200)
+		if err != nil {
+			return nil, err
+		}
+
+		path, err := SafeArtifactPath(artifactDir, pathArg, pathArg)
+		if err != nil {
+			return nil, err
+		}
+		snap, err := CaptureDomSnapshot(page, engine, maxItems)
+		if err != nil {
+			return nil, err
+		}
+		if err := WriteDomSnapshot(path, snap); err != nil {
+			return nil, err
+		}
+		return RunResult{"path": path, "dom_baseline_saved": true, "engine": snap.Engine, "items": len(snap.Items)}, nil
+
+	case "inspect_ref":
+		ref, err := requireString(args, "ref")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		styleProps, err := optionalStringSlice(args, "style_props")
+		if err != nil {
+			return nil, err
+		}
+		m, err := InspectRef(page, ref, engine, RefInspectOptions{StyleProps: styleProps})
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
+	case "test_selector":
+		selector, err := requireString(args, "selector")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		m, err := TestSelector(page, selector, engine)
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
+	case "test_xpath":
+		xpath, err := requireString(args, "xpath")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		m, err := TestXPath(page, xpath, engine)
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
+	case "color_info":
+		ref, err := requireString(args, "ref")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		includeTransparent, err := optionalBool(args, "include_transparent", false)
+		if err != nil {
+			return nil, err
+		}
+		m, err := ColorInfo(page, ref, engine, ColorInfoOptions{IncludeTransparent: includeTransparent})
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
+	case "font_info":
+		ref, err := requireString(args, "ref")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		m, err := FontInfo(page, ref, engine)
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
+	case "perf_metrics":
+		sampleMs, err := optionalInt(args, "sample_ms", 1200)
+		if err != nil {
+			return nil, err
+		}
+		topN, err := optionalInt(args, "top_n", 20)
+		if err != nil {
+			return nil, err
+		}
+		m, err := GetPerfMetrics(page, PerfMetricsOptions{SampleMs: sampleMs, TopN: topN})
+		if err != nil {
+			return nil, err
+		}
+		return RunResult(m), nil
+
+	case "dom_diff":
+		baselineArg, err := requireString(args, "baseline_path")
+		if err != nil {
+			return nil, err
+		}
+		engine, err := optionalString(args, "engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		maxItems, err := optionalInt(args, "max_items", 200)
+		if err != nil {
+			return nil, err
+		}
+
+		baselinePath, err := resolveInputPath(artifactDir, baselineArg)
+		if err != nil {
+			return nil, err
+		}
+		before, err := ReadDomSnapshot(baselinePath)
+		if err != nil {
+			return nil, err
+		}
+		after, err := CaptureDomSnapshot(page, engine, maxItems)
+		if err != nil {
+			return nil, err
+		}
+		diff := DiffDomSnapshots(before, after)
+		return RunResult{
+			"baseline_path": baselinePath,
+			"engine":        engine,
+			"max_items":     maxItems,
+			"added":         diff.Added,
+			"removed":       diff.Removed,
+			"changed":       diff.Changed,
+			"added_count":   diff.AddedCount,
+			"removed_count": diff.RemovedCount,
+			"changed_count": diff.ChangedCount,
+		}, nil
 
 	case "save_baseline":
 		pathArg, err := requireString(args, "path")

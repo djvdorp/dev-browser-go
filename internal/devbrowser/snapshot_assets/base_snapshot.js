@@ -332,9 +332,254 @@
     throw new Error(`Unknown snapshot engine: ${engine}`);
   }
 
+  function cssSelectorFor(el) {
+    if (!el || !el.ownerDocument) return "";
+    if (el.id) return `#${CSS.escape(el.id)}`;
+
+    const parts = [];
+    let node = el;
+    while (node && node.nodeType === 1 && node !== node.ownerDocument.documentElement) {
+      let part = node.tagName.toLowerCase();
+      if (node.id) {
+        part += `#${CSS.escape(node.id)}`;
+        parts.unshift(part);
+        break;
+      }
+      const className = (node.getAttribute("class") || "").trim();
+      if (className) {
+        const classes = className.split(/\s+/).filter(Boolean).slice(0, 3);
+        if (classes.length) part += "." + classes.map((c) => CSS.escape(c)).join(".");
+      }
+      const parent = node.parentElement;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter((c) => c.tagName === node.tagName);
+        if (siblings.length > 1) {
+          const idx = siblings.indexOf(node) + 1;
+          part += `:nth-of-type(${idx})`;
+        }
+      }
+      parts.unshift(part);
+      node = parent;
+      if (parts.length > 6) break;
+    }
+    return parts.join(" > ");
+  }
+
+  function xpathLiteral(value) {
+    const str = String(value);
+    if (str.indexOf("'") === -1) {
+      return "'" + str + "'";
+    }
+    if (str.indexOf('"') === -1) {
+      return '"' + str + '"';
+    }
+    const parts = str.split("'");
+    const concatArgs = [];
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i]) {
+        concatArgs.push("'" + parts[i] + "'");
+      }
+      if (i !== parts.length - 1) {
+        concatArgs.push('"\'"');
+      }
+    }
+    return "concat(" + concatArgs.join(",") + ")";
+  }
+
+  function xpathFor(el) {
+    if (!el || !el.ownerDocument) return "";
+    if (el.id) return `//*[@id=${xpathLiteral(String(el.id))}]`;
+    const parts = [];
+    let node = el;
+    while (node && node.nodeType === 1 && node !== node.ownerDocument.documentElement) {
+      const tag = node.tagName.toLowerCase();
+      const parent = node.parentElement;
+      let idx = 1;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter((c) => c.tagName === node.tagName);
+        if (siblings.length > 1) idx = siblings.indexOf(node) + 1;
+      }
+      parts.unshift(`${tag}[${idx}]`);
+      node = parent;
+      if (parts.length > 8) break;
+    }
+    return "/" + parts.join("/");
+  }
+
+  function inspectRef(ref, userOpts) {
+    const opts = userOpts || {};
+    const el = selectSnapshotRef(ref);
+
+    const role = getRole(el);
+    const name = getLabel(el) || null;
+    const st = getStates(el);
+
+    const attrs = {};
+    try {
+      for (const a of Array.from(el.attributes || [])) {
+        attrs[a.name] = a.value;
+      }
+    } catch {
+    }
+
+    let bbox = null;
+    try {
+      const r = el.getBoundingClientRect();
+      bbox = { x: r.x, y: r.y, width: r.width, height: r.height };
+    } catch {
+    }
+
+    let text = null;
+    try {
+      text = norm(el.innerText || el.textContent || "");
+      if (text && text.length > 200) text = text.slice(0, 200);
+      if (!text) text = null;
+    } catch {
+    }
+
+    let styles = null;
+    const props = Array.isArray(opts.styleProps) ? opts.styleProps : [];
+    if (props.length) {
+      styles = {};
+      try {
+        const cs = getComputedStyle(el);
+        for (const p of props) styles[p] = cs.getPropertyValue(p);
+      } catch {
+      }
+    }
+
+    return {
+      ref,
+      tag: (el.tagName || "").toLowerCase(),
+      role,
+      name,
+      heading: (globalThis.__devBrowserLastSnapshot && globalThis.__devBrowserLastSnapshot.items || []).find((i) => i.ref === ref)?.heading || null,
+      states: {
+        disabled: !!st.disabled,
+        checked: st.checked,
+        expanded: !!st.expanded,
+        selected: !!st.selected,
+        pressed: st.pressed,
+        active: !!st.active
+      },
+      attrs,
+      text,
+      bbox,
+      selector: cssSelectorFor(el),
+      xpath: xpathFor(el),
+      styles
+    };
+  }
+
+  function testSelector(selector) {
+    const sel = String(selector || "").trim();
+    if (!sel) throw new Error("selector is required");
+    const nodes = Array.from(document.querySelectorAll(sel));
+    const preview = [];
+    for (const el of nodes.slice(0, 5)) {
+      preview.push({
+        tag: (el.tagName || "").toLowerCase(),
+        id: el.id || null,
+        class: (el.getAttribute("class") || "").trim() || null,
+        text: norm(el.innerText || el.textContent || "").slice(0, 120) || null
+      });
+    }
+    return { selector: sel, count: nodes.length, preview };
+  }
+
+  function testXPath(xpath) {
+    const xp = String(xpath || "").trim();
+    if (!xp) throw new Error("xpath is required");
+    const result = document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    const preview = [];
+    const count = result.snapshotLength;
+    for (let i = 0; i < Math.min(5, count); i++) {
+      const el = result.snapshotItem(i);
+      if (!el) continue;
+      const isElement = (typeof Node !== "undefined" && el.nodeType === Node.ELEMENT_NODE);
+      const tag = isElement && el.tagName ? el.tagName.toLowerCase() : "";
+      const id = isElement && "id" in el ? (el.id || null) : null;
+      const className = isElement && el.getAttribute ? ((el.getAttribute("class") || "").trim() || null) : null;
+      const text = norm(
+        (isElement && (el.innerText || el.textContent)) ||
+        (!isElement && el.textContent) ||
+        ""
+      ).slice(0, 120) || null;
+      preview.push({
+        tag,
+        id,
+        class: className,
+        text
+      });
+    }
+    return { xpath: xp, count, preview };
+  }
+
+  function parseColor(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+    try {
+      // Use canvas normalization to rgba.
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return { raw, normalized: raw, rgb: null, alpha: 1, hex: null };
+      }
+      ctx.fillStyle = '#000';
+      ctx.fillStyle = raw;
+      const normalized = ctx.fillStyle; // usually rgb(...) or #rrggbb
+      ctx.fillStyle = normalized;
+      ctx.fillRect(0,0,1,1);
+      const d = ctx.getImageData(0,0,1,1).data;
+      const r=d[0], g=d[1], b=d[2], a=d[3]/255;
+      const hex = '#' + [r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+      return { raw, normalized, rgb: {r,g,b}, alpha: a, hex };
+    } catch {
+      return { raw, normalized: raw, rgb: null, alpha: 1, hex: null };
+    }
+  }
+
+  function colorInfo(ref, userOpts) {
+    const opts = userOpts || {};
+    const includeTransparent = opts.includeTransparent === true;
+
+    const el = selectSnapshotRef(ref);
+    const cs = getComputedStyle(el);
+    const props = [
+      'color','background-color',
+      'border-top-color','border-right-color','border-bottom-color','border-left-color',
+      'outline-color'
+    ];
+    const out = { ref, colors: {} };
+    for (const p of props) {
+      const parsed = parseColor(cs.getPropertyValue(p));
+      if (!includeTransparent && parsed && typeof parsed.alpha === 'number' && parsed.alpha === 0) {
+        out.colors[p] = null;
+      } else {
+        out.colors[p] = parsed;
+      }
+    }
+    return out;
+  }
+
+  function fontInfo(ref) {
+    const el = selectSnapshotRef(ref);
+    const cs = getComputedStyle(el);
+    const props = ['font-family','font-size','font-weight','line-height','letter-spacing','font-style'];
+    const out = { ref, font: {} };
+    for (const p of props) out.font[p] = String(cs.getPropertyValue(p) || '').trim() || null;
+    return out;
+  }
+
   globalThis.__devBrowser_buildYaml = buildYaml;
   globalThis.__devBrowser_getAISnapshot = getAISnapshot;
   globalThis.__devBrowser_selectSnapshotRef = selectSnapshotRef;
   globalThis.__devBrowser_drawRefOverlay = drawRefOverlay;
   globalThis.__devBrowser_clearRefOverlay = clearRefOverlay;
+  globalThis.__devBrowser_inspectRef = inspectRef;
+  globalThis.__devBrowser_testSelector = testSelector;
+  globalThis.__devBrowser_testXPath = testXPath;
+  globalThis.__devBrowser_colorInfo = colorInfo;
+  globalThis.__devBrowser_fontInfo = fontInfo;
 })();

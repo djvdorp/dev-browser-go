@@ -122,6 +122,15 @@ Note: device profiles use Playwright names; device/viewport flags apply when the
 | `js-eval` | Evaluate JavaScript and return results |
 | `inject` | Inject JavaScript or CSS into page |
 | `asset-snapshot` | Save HTML with linked assets for offline review |
+| `save-dom-baseline` | Save a DOM snapshot baseline (for structural diffs) |
+| `dom-diff` | Compare current DOM snapshot against a baseline |
+| `network-monitor` | Capture network requests/responses (headers/bodies/filtering) |
+| `inspect-ref` | Inspect a snapshot ref (attrs, selector/xpath, states, bbox) |
+| `test-selector` | Test a CSS selector (count + preview) |
+| `test-xpath` | Test an XPath expression (count + preview) |
+| `perf-metrics` | Collect performance metrics (timing/resources/CWV/FPS) |
+| `color-info` | Extract key colors for a ref (computed -> rgb/hex) |
+| `font-info` | Extract key font properties for a ref |
 | `visual-diff` | Compare current screenshot against baseline |
 | `diff-images` | Capture before/after screenshots and save diff image |
 | `save-baseline` | Save current page state as visual baseline |
@@ -189,18 +198,46 @@ dev-browser-go asset-snapshot --path offline.html \
 
 ### Visual Diff / Regression Testing
 
-Save a baseline:
+Save a visual baseline:
 ```bash
 dev-browser-go goto https://example.com
 dev-browser-go save-baseline --path baseline.png --full-page
 ```
 
-Compare current state:
+Compare current state visually:
 ```bash
 dev-browser-go visual-diff --baseline baseline.png \
   --output diff.png \
   --tolerance 0.05 \
   --pixel-threshold 5
+```
+
+Save a DOM baseline (structure):
+```bash
+dev-browser-go save-dom-baseline --path baseline.dom.json
+```
+
+Compare current DOM structure:
+```bash
+dev-browser-go dom-diff --baseline baseline.dom.json --output json
+```
+
+### Network Monitor
+
+Capture network activity for the current page:
+
+```bash
+# Basic: list requests (url/method/status)
+dev-browser-go network-monitor --output json
+
+# Filter by URL substring and only failures
+dev-browser-go network-monitor --url-contains "/api/" --failed --output json
+
+# Include headers and bodies (truncated per --max-body-bytes)
+dev-browser-go network-monitor --bodies --max-body-bytes 32768 --output json
+
+# Filter by status range
+dev-browser-go network-monitor --status-min 400 --status-max 599 --output json
 ```
 
 Element-level baseline:
