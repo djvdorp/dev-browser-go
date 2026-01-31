@@ -15,6 +15,10 @@ func main() {
 	}
 	if err := Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		type exitCoder interface{ ExitCode() int }
+		if ec, ok := err.(exitCoder); ok {
+			os.Exit(ec.ExitCode())
+		}
 		os.Exit(1)
 	}
 }

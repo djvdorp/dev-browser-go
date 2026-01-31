@@ -197,7 +197,7 @@ func EnsurePage(profile string, headless bool, page string, window *WindowSize, 
 	return ws, tid, nil
 }
 
-func WriteOutput(profile string, mode string, result map[string]any, outPath string) (string, error) {
+func WriteOutput(profile string, mode string, result any, outPath string) (string, error) {
 	switch mode {
 	case "json":
 		enc, err := json.MarshalIndent(result, "", "  ")
@@ -206,16 +206,33 @@ func WriteOutput(profile string, mode string, result map[string]any, outPath str
 		}
 		return string(enc), nil
 	case "html":
-		if html, ok := result["html"].(string); ok {
-			return html, nil
+		if m, ok := result.(map[string]any); ok {
+			if html, ok := m["html"].(string); ok {
+				return html, nil
+			}
 		}
 		return "", errors.New("html output not available")
 	case "summary":
-		if snap, ok := result["snapshot"].(string); ok {
-			return snap, nil
-		}
-		if path, ok := result["path"].(string); ok {
-			return path, nil
+		switch v := result.(type) {
+		case map[string]any:
+			if snap, ok := v["snapshot"].(string); ok {
+				return snap, nil
+			}
+			if path, ok := v["path"].(string); ok {
+				return path, nil
+			}
+		case *DiagnoseReport:
+			if v != nil {
+				return v.Snapshot.YAML, nil
+			}
+		case DiagnoseReport:
+			return v.Snapshot.YAML, nil
+		case AssertResult:
+			enc, _ := json.Marshal(v)
+			return string(enc), nil
+		case HTMLValidateReport:
+			enc, _ := json.Marshal(v)
+			return string(enc), nil
 		}
 		enc, err := json.Marshal(result)
 		if err != nil {
