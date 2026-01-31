@@ -2,7 +2,6 @@ package devbrowser
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/playwright-community/playwright-go"
 )
@@ -119,16 +118,4 @@ func GetPerfMetrics(page playwright.Page, opts PerfMetricsOptions) (map[string]i
 		return nil, fmt.Errorf("unexpected perf metrics result")
 	}
 	return m, nil
-}
-
-func normalizePerfFields(fields []string) []string {
-	out := make([]string, 0, len(fields))
-	for _, f := range fields {
-		v := strings.TrimSpace(f)
-		if v == "" {
-			continue
-		}
-		out = append(out, v)
-	}
-	return out
 }

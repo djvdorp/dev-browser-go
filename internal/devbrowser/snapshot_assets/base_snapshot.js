@@ -365,9 +365,30 @@
     return parts.join(" > ");
   }
 
+  function xpathLiteral(value) {
+    const str = String(value);
+    if (str.indexOf("'") === -1) {
+      return "'" + str + "'";
+    }
+    if (str.indexOf('"') === -1) {
+      return '"' + str + '"';
+    }
+    const parts = str.split("'");
+    const concatArgs = [];
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i]) {
+        concatArgs.push("'" + parts[i] + "'");
+      }
+      if (i !== parts.length - 1) {
+        concatArgs.push('"\'"');
+      }
+    }
+    return "concat(" + concatArgs.join(",") + ")";
+  }
+
   function xpathFor(el) {
     if (!el || !el.ownerDocument) return "";
-    if (el.id) return `//*[@id='${String(el.id).replace(/'/g, "&apos;")}']`;
+    if (el.id) return `//*[@id=${xpathLiteral(String(el.id))}]`;
     const parts = [];
     let node = el;
     while (node && node.nodeType === 1 && node !== node.ownerDocument.documentElement) {
@@ -475,11 +496,20 @@
     for (let i = 0; i < Math.min(5, count); i++) {
       const el = result.snapshotItem(i);
       if (!el) continue;
+      const isElement = (typeof Node !== "undefined" && el.nodeType === Node.ELEMENT_NODE);
+      const tag = isElement && el.tagName ? el.tagName.toLowerCase() : "";
+      const id = isElement && "id" in el ? (el.id || null) : null;
+      const className = isElement && el.getAttribute ? ((el.getAttribute("class") || "").trim() || null) : null;
+      const text = norm(
+        (isElement && (el.innerText || el.textContent)) ||
+        (!isElement && el.textContent) ||
+        ""
+      ).slice(0, 120) || null;
       preview.push({
-        tag: (el.tagName || "").toLowerCase(),
-        id: el.id || null,
-        class: (el.getAttribute && el.getAttribute("class") || "").trim() || null,
-        text: norm(el.innerText || el.textContent || "").slice(0, 120) || null
+        tag,
+        id,
+        class: className,
+        text
       });
     }
     return { xpath: xp, count, preview };
@@ -493,6 +523,9 @@
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 1;
       const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return { raw, normalized: raw, rgb: null, alpha: 1, hex: null };
+      }
       ctx.fillStyle = '#000';
       ctx.fillStyle = raw;
       const normalized = ctx.fillStyle; // usually rgb(...) or #rrggbb
@@ -503,7 +536,7 @@
       const hex = '#' + [r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
       return { raw, normalized, rgb: {r,g,b}, alpha: a, hex };
     } catch {
-      return { raw, normalized: raw };
+      return { raw, normalized: raw, rgb: null, alpha: 1, hex: null };
     }
   }
 

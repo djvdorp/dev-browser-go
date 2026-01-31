@@ -14,7 +14,6 @@ func newTestSelectorCmd() *cobra.Command {
 		Short: "Test a CSS selector (count + preview)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_ = cmd.MarkFlagRequired("selector")
 			payload := map[string]interface{}{
 				"selector": selector,
 				"engine":   engine,
