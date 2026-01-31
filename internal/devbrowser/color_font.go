@@ -6,11 +6,16 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
-func ColorInfo(page playwright.Page, ref string, engine string) (map[string]interface{}, error) {
+type ColorInfoOptions struct {
+	IncludeTransparent bool
+}
+
+func ColorInfo(page playwright.Page, ref string, engine string, opts ColorInfoOptions) (map[string]interface{}, error) {
 	if err := ensureInjected(page, engine); err != nil {
 		return nil, err
 	}
-	res, err := page.Evaluate(`(ref) => globalThis.__devBrowser_colorInfo(ref)`, ref)
+	payload := map[string]interface{}{"ref": ref, "opts": map[string]interface{}{"includeTransparent": opts.IncludeTransparent}}
+	res, err := page.Evaluate(`(p) => globalThis.__devBrowser_colorInfo(p.ref, p.opts)`, payload)
 	if err != nil {
 		return nil, err
 	}

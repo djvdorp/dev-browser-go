@@ -840,7 +840,11 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		if err != nil {
 			return nil, err
 		}
-		m, err := ColorInfo(page, ref, engine)
+		includeTransparent, err := optionalBool(args, "include_transparent", false)
+		if err != nil {
+			return nil, err
+		}
+		m, err := ColorInfo(page, ref, engine, ColorInfoOptions{IncludeTransparent: includeTransparent})
 		if err != nil {
 			return nil, err
 		}

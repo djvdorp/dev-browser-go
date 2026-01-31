@@ -507,7 +507,10 @@
     }
   }
 
-  function colorInfo(ref) {
+  function colorInfo(ref, userOpts) {
+    const opts = userOpts || {};
+    const includeTransparent = opts.includeTransparent === true;
+
     const el = selectSnapshotRef(ref);
     const cs = getComputedStyle(el);
     const props = [
@@ -516,7 +519,14 @@
       'outline-color'
     ];
     const out = { ref, colors: {} };
-    for (const p of props) out.colors[p] = parseColor(cs.getPropertyValue(p));
+    for (const p of props) {
+      const parsed = parseColor(cs.getPropertyValue(p));
+      if (!includeTransparent && parsed && typeof parsed.alpha === 'number' && parsed.alpha === 0) {
+        out.colors[p] = null;
+      } else {
+        out.colors[p] = parsed;
+      }
+    }
     return out;
   }
 
