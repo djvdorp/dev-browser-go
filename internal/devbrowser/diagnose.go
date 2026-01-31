@@ -1,0 +1,379 @@
+package devbrowser
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/playwright-community/playwright-go"
+)
+
+// ArtifactMode controls what files diagnose/assert/html-validate write.
+//
+// none: do not write anything
+// minimal: screenshot + report.json
+// full: screenshot + report.json + component JSON/YAML files
+//
+// Note: these modes only affect file writes; JSON output always includes paths when written.
+//
+// This is intentionally stringly-typed for stable CLI flag parsing.
+type ArtifactMode string
+
+const (
+	ArtifactModeNone    ArtifactMode = "none"
+	ArtifactModeMinimal ArtifactMode = "minimal"
+	ArtifactModeFull    ArtifactMode = "full"
+)
+
+func (m ArtifactMode) Valid() bool {
+	switch m {
+	case ArtifactModeNone, ArtifactModeMinimal, ArtifactModeFull:
+		return true
+	default:
+		return false
+	}
+}
+
+// DiagnoseOptions configures a single diagnose run.
+type DiagnoseOptions struct {
+	URL string
+
+	WaitState   string
+	TimeoutMs   int
+	MinWaitMs   int
+	PageName    string
+	Profile     string
+	RunID       string
+	Timestamp   time.Time
+	ArtifactDir string
+	Artifacts   ArtifactMode
+
+	SnapshotEngine string
+
+	NetBodies       bool
+	NetMaxBodyBytes int
+
+	PerfSampleMs int
+	PerfTopN     int
+}
+
+type DiagnoseMeta struct {
+	URL         string `json:"url"`
+	Page        string `json:"page"`
+	Profile     string `json:"profile"`
+	TS          string `json:"ts"`
+	RunID       string `json:"runId"`
+	ArtifactDir string `json:"artifactDir,omitempty"`
+}
+
+type DiagnoseConsoleCounts struct {
+	Error   int `json:"error"`
+	Warning int `json:"warning"`
+	Info    int `json:"info"`
+}
+
+type DiagnoseConsoleSection struct {
+	Entries []ConsoleEntry        `json:"entries"`
+	Counts  DiagnoseConsoleCounts `json:"counts"`
+}
+
+type DiagnoseNetworkSection struct {
+	Total   int            `json:"total"`
+	Matched int            `json:"matched"`
+	Entries []NetworkEntry `json:"entries"`
+}
+
+type DiagnoseSnapshotSection struct {
+	Engine string                   `json:"engine"`
+	YAML   string                   `json:"yaml"`
+	Items  []map[string]interface{} `json:"items"`
+}
+
+type DiagnoseArtifacts struct {
+	Screenshot string `json:"screenshot,omitempty"`
+	Snapshot   string `json:"snapshot,omitempty"`
+	Network    string `json:"network,omitempty"`
+	Console    string `json:"console,omitempty"`
+	Report     string `json:"report,omitempty"`
+}
+
+type DiagnoseSummary struct {
+	HasConsoleErrors  bool `json:"hasConsoleErrors"`
+	HasHttp4xx5xx     bool `json:"hasHttp4xx5xx"`
+	HasFailedRequests bool `json:"hasFailedRequests"`
+}
+
+type DiagnoseReport struct {
+	Meta      DiagnoseMeta            `json:"meta"`
+	Console   DiagnoseConsoleSection  `json:"console"`
+	Network   DiagnoseNetworkSection  `json:"network"`
+	Perf      map[string]any          `json:"perf"`
+	Snapshot  DiagnoseSnapshotSection `json:"snapshot"`
+	Artifacts DiagnoseArtifacts       `json:"artifacts"`
+	Summary   DiagnoseSummary         `json:"summary"`
+}
+
+func NewDiagnoseRunID() string {
+	// UUID is readable and stable; also avoids collisions in artifact directories.
+	return uuid.NewString()
+}
+
+func DefaultRunArtifactDir(root, runID string, ts time.Time) string {
+	stamp := ts.UTC().Format("20060102T150405Z")
+	short := runID
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	return filepath.Join(root, fmt.Sprintf("run-%s-%s", stamp, short))
+}
+
+func Diagnose(page playwright.Page, opts DiagnoseOptions) (*DiagnoseReport, error) {
+	if strings.TrimSpace(opts.PageName) == "" {
+		opts.PageName = "main"
+	}
+	if strings.TrimSpace(opts.Profile) == "" {
+		opts.Profile = "default"
+	}
+	if opts.Timestamp.IsZero() {
+		opts.Timestamp = time.Now()
+	}
+	if strings.TrimSpace(opts.RunID) == "" {
+		opts.RunID = NewDiagnoseRunID()
+	}
+	if strings.TrimSpace(opts.WaitState) == "" {
+		opts.WaitState = "networkidle"
+	}
+	if opts.TimeoutMs <= 0 {
+		opts.TimeoutMs = 45_000
+	}
+	if opts.MinWaitMs < 0 {
+		opts.MinWaitMs = 0
+	}
+	if strings.TrimSpace(opts.SnapshotEngine) == "" {
+		opts.SnapshotEngine = "simple"
+	}
+	if opts.NetMaxBodyBytes <= 0 {
+		opts.NetMaxBodyBytes = 32 * 1024
+	}
+
+	// Navigate (optional).
+	if strings.TrimSpace(opts.URL) != "" {
+		_, err := RunCall(page, "goto", map[string]interface{}{
+			"url":        opts.URL,
+			"wait_until": "domcontentloaded",
+			"timeout_ms": opts.TimeoutMs,
+		}, opts.ArtifactDir)
+		if err != nil {
+			// Diagnose should still return a report if possible; caller decides exit code.
+			// Here we return error because subsequent calls likely fail without a page.
+			return nil, err
+		}
+	}
+
+	// Wait for state.
+	_, _ = RunCall(page, "wait", map[string]interface{}{
+		"state":       opts.WaitState,
+		"timeout_ms":  opts.TimeoutMs,
+		"min_wait_ms": opts.MinWaitMs,
+	}, opts.ArtifactDir)
+
+	// Console: read via daemon endpoint in CLI layer; Diagnose() only handles Playwright-based primitives.
+	// Callers can populate Console section via SetConsole.
+
+	// Network.
+	netRes, _ := RunCall(page, "network_monitor", map[string]interface{}{
+		"wait_state":      opts.WaitState,
+		"timeout_ms":      opts.TimeoutMs,
+		"min_wait_ms":     opts.MinWaitMs,
+		"include_bodies":  opts.NetBodies,
+		"max_body_bytes":  opts.NetMaxBodyBytes,
+		"include_headers": true,
+	}, opts.ArtifactDir)
+
+	netEntries := []NetworkEntry{}
+	total := 0
+	matched := 0
+	if v, ok := netRes["entries"].([]NetworkEntry); ok {
+		netEntries = v
+	} else if raw, ok := netRes["entries"].([]interface{}); ok {
+		// defensive: should not happen in-process, but keep it robust.
+		b, _ := json.Marshal(raw)
+		_ = json.Unmarshal(b, &netEntries)
+	}
+	if v, ok := netRes["total"].(int); ok {
+		total = v
+	} else if v, ok := netRes["total"].(float64); ok {
+		total = int(v)
+	}
+	if v, ok := netRes["matched"].(int); ok {
+		matched = v
+	} else if v, ok := netRes["matched"].(float64); ok {
+		matched = int(v)
+	}
+
+	// Perf.
+	perf, _ := GetPerfMetrics(page, PerfMetricsOptions{SampleMs: opts.PerfSampleMs, TopN: opts.PerfTopN})
+
+	// Snapshot.
+	snap, _ := GetSnapshot(page, SnapshotOptions{Engine: opts.SnapshotEngine, Format: "list", InteractiveOnly: false, IncludeHeadings: true, MaxItems: 200, MaxChars: 120_000})
+
+	// Screenshot.
+	shotPath := ""
+	if opts.Artifacts != ArtifactModeNone {
+		// Use the runner screenshot to share crop/annotate logic & safe path logic.
+		res, err := RunCall(page, "screenshot", map[string]interface{}{
+			"full_page": true,
+			"path":      "screenshot.png",
+		}, opts.ArtifactDir)
+		if err == nil {
+			if p, _ := res["path"].(string); strings.TrimSpace(p) != "" {
+				shotPath = p
+			}
+		}
+	}
+
+	report := &DiagnoseReport{
+		Meta: DiagnoseMeta{
+			URL:         safeString(page.URL()),
+			Page:        opts.PageName,
+			Profile:     opts.Profile,
+			TS:          opts.Timestamp.UTC().Format(time.RFC3339Nano),
+			RunID:       opts.RunID,
+			ArtifactDir: opts.ArtifactDir,
+		},
+		Console: DiagnoseConsoleSection{
+			Entries: nil,
+			Counts:  DiagnoseConsoleCounts{},
+		},
+		Network:  DiagnoseNetworkSection{Total: total, Matched: matched, Entries: netEntries},
+		Perf:     perf,
+		Snapshot: DiagnoseSnapshotSection{Engine: opts.SnapshotEngine, YAML: snap.Yaml, Items: snap.Items},
+		Artifacts: DiagnoseArtifacts{
+			Screenshot: shotPath,
+		},
+	}
+
+	// Deterministic ordering.
+	sort.Slice(report.Network.Entries, func(i, j int) bool {
+		a, b := report.Network.Entries[i], report.Network.Entries[j]
+		if a.Started == b.Started {
+			if a.URL == b.URL {
+				return a.Method < b.Method
+			}
+			return a.URL < b.URL
+		}
+		return a.Started < b.Started
+	})
+
+	report.computeSummary()
+	return report, nil
+}
+
+func (r *DiagnoseReport) SetConsole(entries []ConsoleEntry) {
+	// Sort deterministically.
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].TimeMS == entries[j].TimeMS {
+			return entries[i].ID < entries[j].ID
+		}
+		return entries[i].TimeMS < entries[j].TimeMS
+	})
+
+	// Truncate any huge console payloads to keep JSON stable and bounded.
+	for i := range entries {
+		entries[i].Text, _, _ = clampBody(entries[i].Text, 4096)
+		entries[i].URL, _, _ = clampBody(entries[i].URL, 1024)
+	}
+
+	counts := DiagnoseConsoleCounts{}
+	for _, e := range entries {
+		switch consoleLevelForType(e.Type) {
+		case "error":
+			counts.Error++
+		case "warning":
+			counts.Warning++
+		default:
+			counts.Info++
+		}
+	}
+	r.Console = DiagnoseConsoleSection{Entries: entries, Counts: counts}
+	r.computeSummary()
+}
+
+func (r *DiagnoseReport) computeSummary() {
+	// Console errors.
+	hasConsoleErrors := r.Console.Counts.Error > 0
+
+	// Network.
+	has4xx5xx := false
+	hasFailed := false
+	for _, e := range r.Network.Entries {
+		if e.Status >= 400 {
+			has4xx5xx = true
+		}
+		if !e.OK || strings.TrimSpace(e.Error) != "" {
+			hasFailed = true
+		}
+	}
+
+	r.Summary = DiagnoseSummary{
+		HasConsoleErrors:  hasConsoleErrors,
+		HasHttp4xx5xx:     has4xx5xx,
+		HasFailedRequests: hasFailed,
+	}
+}
+
+func WriteDiagnoseArtifacts(report *DiagnoseReport, mode ArtifactMode) error {
+	if report == nil {
+		return nil
+	}
+	if mode == ArtifactModeNone {
+		return nil
+	}
+	if strings.TrimSpace(report.Meta.ArtifactDir) == "" {
+		return nil
+	}
+	if err := os.MkdirAll(report.Meta.ArtifactDir, 0o755); err != nil {
+		return err
+	}
+
+	writeJSON := func(name string, v any) (string, error) {
+		path := filepath.Join(report.Meta.ArtifactDir, name)
+		b, err := json.MarshalIndent(v, "", "  ")
+		if err != nil {
+			return "", err
+		}
+		b = append(b, '\n')
+		if err := os.WriteFile(path, b, 0o644); err != nil {
+			return "", err
+		}
+		return path, nil
+	}
+
+	// Always write report.json when artifacts enabled.
+	if p, err := writeJSON("report.json", report); err == nil {
+		report.Artifacts.Report = p
+	}
+	if mode == ArtifactModeMinimal {
+		return nil
+	}
+
+	if p, err := writeJSON("console.json", report.Console); err == nil {
+		report.Artifacts.Console = p
+	}
+	if p, err := writeJSON("network.json", report.Network); err == nil {
+		report.Artifacts.Network = p
+	}
+	// Snapshot YAML in its own file for human inspection.
+	if strings.TrimSpace(report.Snapshot.YAML) != "" {
+		path := filepath.Join(report.Meta.ArtifactDir, "snapshot.yaml")
+		_ = os.WriteFile(path, []byte(report.Snapshot.YAML), 0o644)
+		report.Artifacts.Snapshot = path
+	}
+
+	return nil
+}

@@ -64,5 +64,8 @@ func init() {
 		newJSEvalCmd(),
 		newInjectCmd(),
 		newAssetSnapshotCmd(),
+		newDiagnoseCmd(),
+		newAssertCmd(),
+		newHTMLValidateCmd(),
 	)
 }
