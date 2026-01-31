@@ -14,9 +14,6 @@ func newInspectRefCmd() *cobra.Command {
 		Use:   "inspect-ref",
 		Short: "Inspect a snapshot ref (attrs, selector/xpath, states, bbox)",
 		Args:  cobra.NoArgs,
-		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.MarkFlagRequired("ref")
-		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			payload := map[string]interface{}{
 				"ref":         ref,

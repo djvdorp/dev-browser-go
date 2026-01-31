@@ -131,6 +131,7 @@ func CollectNetwork(page playwright.Page, opts NetworkMonitorOptions) (NetworkSu
 		}
 		req := resp.Request()
 		mu.Lock()
+		defer mu.Unlock()
 		// Try to find an existing entry by scanning backwards for same URL+method.
 		key := ""
 		for i := len(orderedKeys) - 1; i >= 0; i-- {
@@ -143,11 +144,9 @@ func CollectNetwork(page playwright.Page, opts NetworkMonitorOptions) (NetworkSu
 		}
 		if key == "" {
 			// Not found (race / exceeded max / listener late). Ignore.
-			mu.Unlock()
 			return
 		}
 		e := entries[key]
-		mu.Unlock()
 
 		status := resp.Status()
 		e.Status = status
@@ -176,6 +175,7 @@ func CollectNetwork(page playwright.Page, opts NetworkMonitorOptions) (NetworkSu
 			return
 		}
 		mu.Lock()
+		defer mu.Unlock()
 		// find latest matching entry
 		var e *NetworkEntry
 		for i := len(orderedKeys) - 1; i >= 0; i-- {
@@ -186,7 +186,6 @@ func CollectNetwork(page playwright.Page, opts NetworkMonitorOptions) (NetworkSu
 				break
 			}
 		}
-		mu.Unlock()
 		if e == nil {
 			return
 		}
@@ -240,13 +239,8 @@ func CollectNetwork(page playwright.Page, opts NetworkMonitorOptions) (NetworkSu
 }
 
 func matchNetwork(e NetworkEntry, opts NetworkMonitorOptions) bool {
-	if opts.OnlyFailed {
-		if e.OK {
-			return false
-		}
-		if opts.StatusEquals == 0 && opts.StatusMin == 0 && opts.StatusMax == 0 {
-			// ok
-		}
+	if opts.OnlyFailed && e.OK {
+		return false
 	}
 	if strings.TrimSpace(opts.URLContains) != "" && !strings.Contains(e.URL, opts.URLContains) {
 		return false

@@ -14,7 +14,6 @@ func newTestXPathCmd() *cobra.Command {
 		Short: "Test an XPath expression (count + preview)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_ = cmd.MarkFlagRequired("xpath")
 			payload := map[string]interface{}{
 				"xpath":  xpath,
 				"engine": engine,
