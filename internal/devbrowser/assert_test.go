@@ -116,3 +116,31 @@ func TestEvaluateAssert_Pass(t *testing.T) {
 		t.Fatalf("expected passed; failedChecks=%v", res.FailedChecks)
 	}
 }
+
+func TestEvaluateAssert_TextMatchWithNoOverlayOrError(t *testing.T) {
+	// Test behavior when text match rules are specified but no overlay/error exists.
+	// These checks should fail because the text is empty.
+	report := &DiagnoseReport{}
+	report.Console.Counts = DiagnoseConsoleCounts{Error: 0, Warning: 0, Info: 0}
+	report.Network.Entries = []NetworkEntry{{URL: "https://x", Method: "GET", Status: 200, OK: true}}
+	report.Perf = map[string]any{"cwv": map[string]any{"lcp": 1200.0, "cls": 0.01}}
+	report.Harness.State = map[string]any{"errors": []interface{}{}, "overlays": []interface{}{}}
+	report.computeSummary()
+
+	rules := &AssertRules{
+		Harness: &AssertHarness{
+			ViteOverlayTextContains:     []string{"some text"},
+			HarnessErrorMessageContains: []string{"some error"},
+		},
+	}
+
+	res := EvaluateAssert(report, rules, nil, nil)
+	if res.Passed {
+		t.Fatal("expected failed when text match rules don't match empty text")
+	}
+	// Should have both checks fail.
+	if len(res.FailedChecks) != 2 {
+		t.Fatalf("expected 2 failed checks, got %d", len(res.FailedChecks))
+	}
+}
+
