@@ -105,6 +105,7 @@ func ServeDaemon(opts DaemonOptions) error {
 		"profile":    profile,
 		"cdpPort":    cdpPort,
 		"wsEndpoint": ws,
+		"version":    DaemonVersion(),
 	}); err != nil {
 		ln.Close()
 		return err
@@ -125,7 +126,7 @@ func (d *Daemon) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"pid":        os.Getpid(),
 		"profile":    d.opts.Profile,
 		"wsEndpoint": ws,
-		"version":    "0.1.0-go",
+		"version":    DaemonVersion(),
 	})
 }
 

@@ -10,5 +10,9 @@
   "perf": {
     "lcpMaxMs": 3500,
     "clsMax": 0.15
+  },
+  "harness": {
+    "maxErrors": 0,
+    "maxOverlays": 0
   }
 }
