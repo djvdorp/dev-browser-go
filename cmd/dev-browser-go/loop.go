@@ -160,7 +160,6 @@ func newLoopCmd() *cobra.Command {
 			watchStart := time.Now()
 			runs := 0
 			var lastResult devbrowser.AssertResult
-			var lastSummary devbrowser.DiagnoseSummary
 			hasLast := false
 			var lastErr error
 
@@ -179,7 +178,6 @@ func newLoopCmd() *cobra.Command {
 					lastErr = nil
 					hasLast = true
 					lastResult = result
-					lastSummary = summary
 					outObj := LoopOutput{RunID: runID, ArtifactDir: runDir, Summary: summary, Assert: result}
 					if err := writeLoopOutput(outObj); err != nil {
 						return err
@@ -213,7 +211,6 @@ func newLoopCmd() *cobra.Command {
 							if lastResult.Passed {
 								return nil
 							}
-							_ = lastSummary
 							return devbrowser.ExitCodeError{Code: 2}
 						}
 						if lastErr != nil {
@@ -224,6 +221,10 @@ func newLoopCmd() *cobra.Command {
 				}
 
 				// Watch mode: block until we detect a change.
+				// Only reached when watch is true (ensured by earlier returns at lines 176 and 188-192).
+				if !watch {
+					return fmt.Errorf("unexpected: reached watch polling loop with watch=false")
+				}
 				for {
 					time.Sleep(time.Duration(watchIntervalMs) * time.Millisecond)
 					cur := watchStamp(watchPaths)
@@ -290,10 +291,11 @@ func writeLoopOutput(obj LoopOutput) error {
 		return nil
 	case "path":
 		path := globalOpts.outPath
-		if strings.TrimSpace(path) == "" {
-			path = fmt.Sprintf("loop-%d.json", devbrowser.NowMS())
-		}
-		p, err := devbrowser.SafeArtifactPath(devbrowser.ArtifactDir(globalOpts.profile), path, fmt.Sprintf("loop-%d.json", devbrowser.NowMS()))
+		p, err := devbrowser.SafeArtifactPath(
+			devbrowser.ArtifactDir(globalOpts.profile),
+			path,
+			fmt.Sprintf("loop-%d.json", devbrowser.NowMS()),
+		)
 		if err != nil {
 			return err
 		}
@@ -309,7 +311,10 @@ func writeLoopOutput(obj LoopOutput) error {
 		return nil
 	default:
 		// fallback: summary
-		b, _ := json.Marshal(obj)
+		b, err := json.Marshal(obj)
+		if err != nil {
+			return err
+		}
 		fmt.Println(string(b))
 		return nil
 	}
