@@ -60,6 +60,8 @@ func TestDiagnoseSummary_ViteOverlayTextClamped(t *testing.T) {
 	}
 
 	r := &DiagnoseReport{}
+	r.Console.Counts = DiagnoseConsoleCounts{Error: 0}
+	r.Network.Entries = nil
 	r.Harness.State = map[string]any{
 		"errors": []interface{}{},
 		"overlays": []interface{}{
@@ -75,7 +77,7 @@ func TestDiagnoseSummary_ViteOverlayTextClamped(t *testing.T) {
 	if len(r.Summary.ViteOverlayText) == 0 {
 		t.Fatalf("expected ViteOverlayText")
 	}
-	if len(r.Summary.ViteOverlayText) > 900 {
-		t.Fatalf("expected clamped ViteOverlayText <= ~800 chars, got %d", len(r.Summary.ViteOverlayText))
+	if len(r.Summary.ViteOverlayText) > 800 {
+		t.Fatalf("expected clamped ViteOverlayText <= 800 chars, got %d", len(r.Summary.ViteOverlayText))
 	}
 }
