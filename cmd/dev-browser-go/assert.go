@@ -108,7 +108,7 @@ func newAssertCmd() *cobra.Command {
 				if errMsg, ok := selectorEvalErr[selStr]; ok {
 					ctx["evalError"] = errMsg
 				}
-				preview, err := devbrowser.SelectorPreview(page, selStr, devbrowser.SelectorPreviewOptions{Limit: 5, TextMaxChars: 120})
+				preview, err := devbrowser.SelectorPreview(page, selStr, devbrowser.SelectorPreviewOptions{Limit: 5})
 				if err == nil {
 					ctx["preview"] = preview
 				}
