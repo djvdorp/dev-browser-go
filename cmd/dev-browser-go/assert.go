@@ -50,9 +50,8 @@ func newAssertCmd() *cobra.Command {
 
 			ts := time.Now()
 			ctx := devbrowser.NewRunContext(devbrowser.RunOptions{
-				Profile:      globalOpts.profile,
-				ArtifactRoot: devbrowser.ArtifactDir(globalOpts.profile),
-				Timestamp:    ts,
+				Profile:   globalOpts.profile,
+				Timestamp: ts,
 			})
 			runID := ctx.RunID
 			runDir := ""
