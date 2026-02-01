@@ -2,7 +2,6 @@ package devbrowser
 
 import (
 	"sort"
-	"strings"
 )
 
 func BuildDiagnoseEvents(console []ConsoleEntry, network []NetworkEntry, harness map[string]any) []DiagnoseEvent {
@@ -39,12 +38,13 @@ func BuildDiagnoseEvents(console []ConsoleEntry, network []NetworkEntry, harness
 				if !ok {
 					continue
 				}
-				tm, _ := m["time_ms"].(float64)
+				tm, ok := m["time_ms"].(float64)
+				if !ok {
+					// Skip entries without valid time_ms to avoid distorting timeline
+					continue
+				}
 				timeMs := int64(tm)
 				kind := "errorhook"
-				if t, _ := m["type"].(string); strings.TrimSpace(t) != "" {
-					// keep the type inside data; kind stays stable
-				}
 				events = append(events, DiagnoseEvent{Kind: kind, TimeMS: timeMs, Data: m})
 			}
 		}
@@ -54,33 +54,80 @@ func BuildDiagnoseEvents(console []ConsoleEntry, network []NetworkEntry, harness
 				if !ok {
 					continue
 				}
-				tm, _ := m["time_ms"].(float64)
+				tm, ok := m["time_ms"].(float64)
+				if !ok {
+					// Skip entries without valid time_ms to avoid distorting timeline
+					continue
+				}
 				events = append(events, DiagnoseEvent{Kind: "overlay", TimeMS: int64(tm), Data: m})
 			}
 		}
 	}
 
-	sort.Slice(events, func(i, j int) bool {
-		if events[i].TimeMS == events[j].TimeMS {
-			if events[i].Kind == events[j].Kind {
-				return stringify(events[i].Data) < stringify(events[j].Data)
-			}
+	// Use stable sort with complete tie-breakers for deterministic output
+	sort.SliceStable(events, func(i, j int) bool {
+		if events[i].TimeMS != events[j].TimeMS {
+			return events[i].TimeMS < events[j].TimeMS
+		}
+		if events[i].Kind != events[j].Kind {
 			return events[i].Kind < events[j].Kind
 		}
-		return events[i].TimeMS < events[j].TimeMS
+		// Stable tie-breakers by kind
+		return stableCompareData(events[i], events[j])
 	})
 
 	return events
 }
 
-func stringify(m map[string]any) string {
-	if m == nil {
-		return ""
+// stableCompareData provides deterministic ordering for events with same TimeMS and Kind
+func stableCompareData(a, b DiagnoseEvent) bool {
+	switch a.Kind {
+	case "console":
+		// Compare by id first (guaranteed unique), then text
+		idA, okA := a.Data["id"].(int)
+		idB, okB := b.Data["id"].(int)
+		if okA && okB && idA != idB {
+			return idA < idB
+		}
+		return stringField(a.Data, "text") < stringField(b.Data, "text")
+	case "network":
+		// Compare by url+method+status
+		urlA := stringField(a.Data, "url")
+		urlB := stringField(b.Data, "url")
+		if urlA != urlB {
+			return urlA < urlB
+		}
+		methodA := stringField(a.Data, "method")
+		methodB := stringField(b.Data, "method")
+		if methodA != methodB {
+			return methodA < methodB
+		}
+		statusA, _ := a.Data["status"].(int)
+		statusB, _ := b.Data["status"].(int)
+		return statusA < statusB
+	case "errorhook":
+		// Compare by type+message+stack
+		typeA := stringField(a.Data, "type")
+		typeB := stringField(b.Data, "type")
+		if typeA != typeB {
+			return typeA < typeB
+		}
+		msgA := stringField(a.Data, "message")
+		msgB := stringField(b.Data, "message")
+		if msgA != msgB {
+			return msgA < msgB
+		}
+		return stringField(a.Data, "stack") < stringField(b.Data, "stack")
+	case "overlay":
+		// Compare by text
+		return stringField(a.Data, "text") < stringField(b.Data, "text")
+	default:
+		return false
 	}
-	if v, ok := m["url"].(string); ok {
-		return v
-	}
-	if v, ok := m["text"].(string); ok {
+}
+
+func stringField(m map[string]any, key string) string {
+	if v, ok := m[key].(string); ok {
 		return v
 	}
 	return ""

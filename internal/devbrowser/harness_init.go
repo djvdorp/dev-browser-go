@@ -23,7 +23,13 @@ func EnsureHarnessOnPage(page playwright.Page) {
 		return
 	}
 	// Best-effort: install for the current document as well (AddInitScript only affects future navigations/frames).
-	_, _ = page.Evaluate(`() => Boolean(globalThis.__devBrowser_getHarnessState)`) // probe
+	res, err := page.Evaluate(`() => Boolean(globalThis.__devBrowser_getHarnessState)`)
+	if err == nil {
+		if installed, ok := res.(bool); ok && installed {
+			// Harness is already installed; avoid re-running the large init script.
+			return
+		}
+	}
 	_, _ = page.Evaluate(harnessInitJS)
 }
 
@@ -40,7 +46,7 @@ func ReadHarnessState(page playwright.Page) (map[string]any, error) {
 	}
 	m, ok := res.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("unexpected harness state")
+		return nil, fmt.Errorf("unexpected harness state of type %T: %v", res, res)
 	}
 	return m, nil
 }
