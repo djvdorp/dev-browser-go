@@ -9,8 +9,6 @@ import (
 
 type SelectorPreviewOptions struct {
 	Limit int
-	// TextMaxChars truncates textContent/innerText preview.
-	TextMaxChars int
 }
 
 // SelectorPreview returns a deterministic preview of elements matching a selector.
@@ -22,9 +20,6 @@ func SelectorPreview(page playwright.Page, selector string, opts SelectorPreview
 	}
 	if opts.Limit <= 0 {
 		opts.Limit = 5
-	}
-	if opts.TextMaxChars <= 0 {
-		opts.TextMaxChars = 120
 	}
 
 	// Reuse the injected JS helper (same logic as `test-selector` command) for stability.
