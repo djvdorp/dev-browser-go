@@ -31,6 +31,8 @@ func newLoopCmd() *cobra.Command {
 	var watch bool
 	var watchIntervalMs int
 	var watchPathsRaw string
+	var watchMaxRuns int
+	var watchTimeoutMs int
 
 	cmd := &cobra.Command{
 		Use:   "loop",
@@ -155,18 +157,24 @@ func newLoopCmd() *cobra.Command {
 			if watch {
 				lastStamp = watchStamp(watchPaths)
 			}
+			watchStart := time.Now()
+			runs := 0
+			var lastResult devbrowser.AssertResult
+			var lastSummary devbrowser.DiagnoseSummary
 
 			for {
 				result, summary, runID, runDir, err := runOnce()
 				if err != nil {
 					if watch {
 						fmt.Fprintf(os.Stderr, "loop iteration error: %v\n", err)
+						// simple backoff to avoid tight error loops
+						time.Sleep(time.Duration(watchIntervalMs) * time.Millisecond)
 					} else {
 						return err
 					}
-				}
-
-				if err == nil {
+				} else {
+					lastResult = result
+					lastSummary = summary
 					outObj := LoopOutput{RunID: runID, ArtifactDir: runDir, Summary: summary, Assert: result}
 					if err := writeLoopOutput(outObj); err != nil {
 						return err
@@ -176,6 +184,24 @@ func newLoopCmd() *cobra.Command {
 						if result.Passed {
 							return nil
 						}
+						return devbrowser.ExitCodeError{Code: 2}
+					}
+				}
+
+				if watch {
+					runs++
+					if watchMaxRuns > 0 && runs >= watchMaxRuns {
+						// exit with last known assert result
+						if lastResult.Passed {
+							return nil
+						}
+						return devbrowser.ExitCodeError{Code: 2}
+					}
+					if watchTimeoutMs > 0 && time.Since(watchStart) >= time.Duration(watchTimeoutMs)*time.Millisecond {
+						if lastResult.Passed {
+							return nil
+						}
+						_ = lastSummary
 						return devbrowser.ExitCodeError{Code: 2}
 					}
 				}
@@ -204,6 +230,8 @@ func newLoopCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&watch, "watch", false, "Watch for changes and re-run")
 	cmd.Flags().IntVar(&watchIntervalMs, "watch-interval-ms", 750, "Watch poll interval in ms")
 	cmd.Flags().StringVar(&watchPathsRaw, "watch-paths", ".", "Comma-separated paths to watch (files or dirs)")
+	cmd.Flags().IntVar(&watchMaxRuns, "watch-max-runs", 0, "Max runs in watch mode (0 = unlimited)")
+	cmd.Flags().IntVar(&watchTimeoutMs, "watch-timeout-ms", 0, "Timeout in watch mode (0 = unlimited)")
 
 	_ = cmd.MarkFlagRequired("rules")
 	return cmd
