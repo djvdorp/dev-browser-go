@@ -19,3 +19,4 @@ PROMPT=$'Review this git diff for correctness, determinism/stable output, backwa
 
 # Note: gh copilot does not support --stdin; pass the diff as part of the prompt.
 gh copilot -p "${PROMPT}${DIFF}"
+

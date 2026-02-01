@@ -348,16 +348,21 @@ func (r *DiagnoseReport) computeSummary() {
 				if !ok {
 					continue
 				}
+				var typVal, msgVal, stackVal string
 				if typ, ok := m["type"].(string); ok {
-					harnessTopType = strings.TrimSpace(typ)
+					typVal = strings.TrimSpace(typ)
 				}
 				if msg, ok := m["message"].(string); ok {
-					harnessTopLine = strings.TrimSpace(msg)
+					msgVal = strings.TrimSpace(msg)
 				}
 				if stack, ok := m["stack"].(string); ok {
-					harnessTopStack = strings.TrimSpace(stack)
+					stackVal = strings.TrimSpace(stack)
 				}
-				if harnessTopLine != "" || harnessTopStack != "" {
+				// Pick the most recent entry that has at least some error information.
+				if typVal != "" || msgVal != "" || stackVal != "" {
+					harnessTopType = typVal
+					harnessTopLine = msgVal
+					harnessTopStack = stackVal
 					break
 				}
 			}
