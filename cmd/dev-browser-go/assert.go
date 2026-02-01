@@ -49,10 +49,16 @@ func newAssertCmd() *cobra.Command {
 			defer pw.Stop()
 
 			ts := time.Now()
-			runID := devbrowser.NewDiagnoseRunID()
+			ctx := devbrowser.NewRunContext(devbrowser.RunOptions{
+				Profile:      globalOpts.profile,
+				ArtifactRoot: devbrowser.ArtifactDir(globalOpts.profile),
+				Timestamp:    ts,
+			})
+			runID := ctx.RunID
 			runDir := ""
 			if mode != devbrowser.ArtifactModeNone {
-				runDir = devbrowser.DefaultRunArtifactDir(devbrowser.ArtifactDir(globalOpts.profile), runID, ts)
+				runDir = ctx.DefaultRunDir()
+				_ = ctx.EnsureDir(runDir)
 			}
 
 			report, err := devbrowser.Diagnose(page, devbrowser.DiagnoseOptions{

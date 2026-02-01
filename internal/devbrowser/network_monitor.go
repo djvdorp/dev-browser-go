@@ -263,25 +263,6 @@ func matchNetwork(e NetworkEntry, opts NetworkMonitorOptions) bool {
 	return true
 }
 
-func clampBody(s string, max int) (body string, truncated bool, encoding string) {
-	encoding = "utf8"
-	if max <= 0 {
-		return s, false, encoding
-	}
-	r := []rune(s)
-	if len(r) <= max {
-		return s, false, encoding
-	}
-	return string(r[:max]), true, encoding
-}
-
-func clampBytes(b []byte, max int) []byte {
-	if max <= 0 || len(b) <= max {
-		return b
-	}
-	return b[:max]
-}
-
 func looksBinary(b []byte) bool {
 	// Heuristic: NUL byte or too many control chars.
 	if len(b) == 0 {

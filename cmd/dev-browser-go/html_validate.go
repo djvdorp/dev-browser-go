@@ -56,8 +56,9 @@ func newHTMLValidateCmd() *cobra.Command {
 			}
 			runDir := ""
 			if mode != devbrowser.ArtifactModeNone {
-				runID := devbrowser.NewDiagnoseRunID()
-				runDir = devbrowser.DefaultRunArtifactDir(devbrowser.ArtifactDir(globalOpts.profile), runID, time.Now())
+				ctx := devbrowser.NewRunContextFromProfile(globalOpts.profile)
+				runDir = ctx.DefaultRunDir()
+				_ = ctx.EnsureDir(runDir)
 				_, _ = devbrowser.WriteHTMLValidateArtifacts(runDir, report, mode)
 			}
 

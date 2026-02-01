@@ -2,14 +2,11 @@ package devbrowser
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/playwright-community/playwright-go"
 )
 
@@ -116,20 +113,6 @@ type DiagnoseReport struct {
 	Snapshot  DiagnoseSnapshotSection `json:"snapshot"`
 	Artifacts DiagnoseArtifacts       `json:"artifacts"`
 	Summary   DiagnoseSummary         `json:"summary"`
-}
-
-func NewDiagnoseRunID() string {
-	// UUID is readable and stable; also avoids collisions in artifact directories.
-	return uuid.NewString()
-}
-
-func DefaultRunArtifactDir(root, runID string, ts time.Time) string {
-	stamp := ts.UTC().Format("20060102T150405Z")
-	short := runID
-	if len(short) > 8 {
-		short = short[:8]
-	}
-	return filepath.Join(root, fmt.Sprintf("run-%s-%s", stamp, short))
 }
 
 func Diagnose(page playwright.Page, opts DiagnoseOptions) (*DiagnoseReport, error) {
@@ -259,16 +242,7 @@ func Diagnose(page playwright.Page, opts DiagnoseOptions) (*DiagnoseReport, erro
 	}
 
 	// Deterministic ordering.
-	sort.Slice(report.Network.Entries, func(i, j int) bool {
-		a, b := report.Network.Entries[i], report.Network.Entries[j]
-		if a.Started == b.Started {
-			if a.URL == b.URL {
-				return a.Method < b.Method
-			}
-			return a.URL < b.URL
-		}
-		return a.Started < b.Started
-	})
+	SortNetworkEntries(report.Network.Entries)
 
 	report.computeSummary()
 	return report, nil
@@ -276,12 +250,7 @@ func Diagnose(page playwright.Page, opts DiagnoseOptions) (*DiagnoseReport, erro
 
 func (r *DiagnoseReport) SetConsole(entries []ConsoleEntry) {
 	// Sort deterministically.
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].TimeMS == entries[j].TimeMS {
-			return entries[i].ID < entries[j].ID
-		}
-		return entries[i].TimeMS < entries[j].TimeMS
-	})
+	SortConsoleEntries(entries)
 
 	// Truncate any huge console payloads to keep JSON stable and bounded.
 	for i := range entries {

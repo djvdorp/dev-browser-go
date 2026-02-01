@@ -241,6 +241,7 @@ func (d *Daemon) handlePageSubresource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logs = selectConsoleLogs(logs, levelFilter, since, limit)
+	SortConsoleEntries(logs)
 	if len(logs) > 0 {
 		lastID = logs[len(logs)-1].ID
 	}
@@ -252,6 +253,7 @@ func (d *Daemon) handlePageSubresource(w http.ResponseWriter, r *http.Request) {
 		"limit":   limit,
 		"last_id": lastID,
 		"logs":    logs,
+		"entries": logs,
 	})
 }
 
