@@ -122,29 +122,32 @@ func newLoopCmd() *cobra.Command {
 
 				result := devbrowser.EvaluateAssert(report, rules, selectorCounts, nil)
 
-				// Attach deterministic previews for failed selector checks (best-effort).
-				for i := range result.FailedChecks {
-					id := result.FailedChecks[i].ID
-					if id != "selectors.min" && id != "selectors.max" {
-						continue
+				// Attach selector previews only when artifacts are full.
+				// These previews reflect live page state and can be non-deterministic.
+				if mode == devbrowser.ArtifactModeFull {
+					for i := range result.FailedChecks {
+						id := result.FailedChecks[i].ID
+						if id != "selectors.min" && id != "selectors.max" {
+							continue
+						}
+						ctx := result.FailedChecks[i].Context
+						if ctx == nil {
+							ctx = map[string]any{}
+						}
+						selRaw, _ := ctx["selector"].(string)
+						selStr := strings.TrimSpace(selRaw)
+						if selStr == "" {
+							continue
+						}
+						if errMsg, ok := selectorEvalErr[selStr]; ok {
+							ctx["evalError"] = errMsg
+						}
+						preview, err := devbrowser.SelectorPreview(page, selStr, devbrowser.SelectorPreviewOptions{Limit: 5})
+						if err == nil {
+							ctx["preview"] = preview
+						}
+						result.FailedChecks[i].Context = ctx
 					}
-					ctx := result.FailedChecks[i].Context
-					if ctx == nil {
-						ctx = map[string]any{}
-					}
-					selRaw, _ := ctx["selector"].(string)
-					selStr := strings.TrimSpace(selRaw)
-					if selStr == "" {
-						continue
-					}
-					if errMsg, ok := selectorEvalErr[selStr]; ok {
-						ctx["evalError"] = errMsg
-					}
-					preview, err := devbrowser.SelectorPreview(page, selStr, devbrowser.SelectorPreviewOptions{Limit: 5})
-					if err == nil {
-						ctx["preview"] = preview
-					}
-					result.FailedChecks[i].Context = ctx
 				}
 
 				_ = devbrowser.WriteDiagnoseArtifacts(report, mode)
