@@ -90,6 +90,72 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 			"items":    snap.Items,
 		}, nil
 
+	case "diagnose":
+		url, err := optionalString(args, "url", "")
+		if err != nil {
+			return nil, err
+		}
+		pageName, err := optionalString(args, "page", "main")
+		if err != nil {
+			return nil, err
+		}
+		profile, err := optionalString(args, "profile", "default")
+		if err != nil {
+			return nil, err
+		}
+		waitState, err := optionalString(args, "wait", "networkidle")
+		if err != nil {
+			return nil, err
+		}
+		timeoutMs, err := optionalInt(args, "timeout_ms", 45_000)
+		if err != nil {
+			return nil, err
+		}
+		minWaitMs, err := optionalInt(args, "min_wait_ms", 250)
+		if err != nil {
+			return nil, err
+		}
+		snapshotEngine, err := optionalString(args, "snapshot_engine", "simple")
+		if err != nil {
+			return nil, err
+		}
+		netBodies, err := optionalBool(args, "net_bodies", false)
+		if err != nil {
+			return nil, err
+		}
+		netMaxBodyBytes, err := optionalInt(args, "net_max_body_bytes", 32*1024)
+		if err != nil {
+			return nil, err
+		}
+		perfSampleMs, err := optionalInt(args, "perf_sample_ms", 1200)
+		if err != nil {
+			return nil, err
+		}
+		perfTopN, err := optionalInt(args, "perf_top_n", 20)
+		if err != nil {
+			return nil, err
+		}
+
+		report, err := Diagnose(page, DiagnoseOptions{
+			URL:            url,
+			WaitState:       waitState,
+			TimeoutMs:       timeoutMs,
+			MinWaitMs:       minWaitMs,
+			PageName:        pageName,
+			Profile:         profile,
+			ArtifactDir:     artifactDir,
+			Artifacts:       ArtifactModeMinimal,
+			SnapshotEngine:  snapshotEngine,
+			NetBodies:       netBodies,
+			NetMaxBodyBytes: netMaxBodyBytes,
+			PerfSampleMs:    perfSampleMs,
+			PerfTopN:        perfTopN,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return RunResult{"report": report}, nil
+
 	case "click_ref":
 		ref, err := requireString(args, "ref")
 		if err != nil {

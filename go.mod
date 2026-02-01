@@ -1,10 +1,12 @@
 module github.com/joshp123/dev-browser-go
 
-go 1.22
+go 1.24.0
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/playwright-community/playwright-go v0.4700.0
 	github.com/spf13/cobra v1.8.1
+	golang.org/x/net v0.49.0
 )
 
 require (
