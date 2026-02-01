@@ -21,6 +21,9 @@ type AssertRules struct {
 type AssertHarness struct {
 	MaxErrors   *int `json:"maxErrors,omitempty"`
 	MaxOverlays *int `json:"maxOverlays,omitempty"`
+
+	ViteOverlayTextContains     []string `json:"viteOverlayTextContains,omitempty"`
+	HarnessErrorMessageContains []string `json:"harnessErrorMessageContains,omitempty"`
 }
 
 type AssertNetwork struct {
@@ -212,6 +215,21 @@ func EvaluateAssert(report *DiagnoseReport, rules *AssertRules, selectorCounts m
 		if rules.Harness.MaxOverlays != nil && overlaysCount > *rules.Harness.MaxOverlays {
 			res.Passed = false
 			res.FailedChecks = append(res.FailedChecks, AssertFailedCheck{ID: "harness.maxOverlays", Message: fmt.Sprintf("harness overlays %d > max %d", overlaysCount, *rules.Harness.MaxOverlays), Context: map[string]any{"count": overlaysCount, "max": *rules.Harness.MaxOverlays}})
+		}
+
+		if len(rules.Harness.ViteOverlayTextContains) > 0 {
+			text := report.Summary.ViteOverlayText
+			if !containsAny(text, rules.Harness.ViteOverlayTextContains) {
+				res.Passed = false
+				res.FailedChecks = append(res.FailedChecks, AssertFailedCheck{ID: "harness.viteOverlayTextContains", Message: "vite overlay text did not contain any required substrings", Context: map[string]any{"needles": rules.Harness.ViteOverlayTextContains}})
+			}
+		}
+		if len(rules.Harness.HarnessErrorMessageContains) > 0 {
+			msg := report.Summary.HarnessErrorTopLine
+			if !containsAny(msg, rules.Harness.HarnessErrorMessageContains) {
+				res.Passed = false
+				res.FailedChecks = append(res.FailedChecks, AssertFailedCheck{ID: "harness.harnessErrorMessageContains", Message: "harness error message did not contain any required substrings", Context: map[string]any{"needles": rules.Harness.HarnessErrorMessageContains}})
+			}
 		}
 	}
 

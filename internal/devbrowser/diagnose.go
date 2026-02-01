@@ -100,13 +100,21 @@ type DiagnoseArtifacts struct {
 }
 
 type DiagnoseSummary struct {
-	HasConsoleErrors  bool   `json:"hasConsoleErrors"`
-	HasHttp4xx5xx     bool   `json:"hasHttp4xx5xx"`
-	HasFailedRequests bool   `json:"hasFailedRequests"`
-	HasHarnessErrors  bool   `json:"hasHarnessErrors"`
-	HarnessErrorCount int    `json:"harnessErrorCount"`
-	HasViteOverlay    bool   `json:"hasViteOverlay"`
-	ViteOverlayText   string `json:"viteOverlayText,omitempty"`
+	HasConsoleErrors  bool `json:"hasConsoleErrors"`
+	HasHttp4xx5xx     bool `json:"hasHttp4xx5xx"`
+	HasFailedRequests bool `json:"hasFailedRequests"`
+
+	HasHarnessErrors     bool   `json:"hasHarnessErrors"`
+	HarnessErrorCount    int    `json:"harnessErrorCount"`
+	HarnessErrorTopType  string `json:"harnessErrorTopType,omitempty"`
+	HarnessErrorTopLine  string `json:"harnessErrorTopLine,omitempty"`
+	HarnessErrorTopStack string `json:"harnessErrorTopStack,omitempty"`
+	HarnessErrorClass    string `json:"harnessErrorClass,omitempty"`
+
+	HasViteOverlay     bool   `json:"hasViteOverlay"`
+	ViteOverlayText    string `json:"viteOverlayText,omitempty"`
+	ViteOverlayTopLine string `json:"viteOverlayTopLine,omitempty"`
+	ViteOverlayClass   string `json:"viteOverlayClass,omitempty"`
 }
 
 type DiagnoseEvent struct {
@@ -320,40 +328,99 @@ func (r *DiagnoseReport) computeSummary() {
 	// Harness.
 	hasHarnessErrors := false
 	harnessErrorCount := 0
+	harnessTopType := ""
+	harnessTopLine := ""
+	harnessTopStack := ""
+	harnessClass := ""
+
 	hasViteOverlay := false
 	viteOverlayText := ""
+	viteOverlayTopLine := ""
+	viteOverlayClass := ""
+
 	if r.Harness.State != nil {
+		// Most recent harness error (window.onerror / unhandledrejection).
 		if arr, ok := r.Harness.State["errors"].([]interface{}); ok {
 			harnessErrorCount = len(arr)
 			hasHarnessErrors = harnessErrorCount > 0
-		}
-		if arr, ok := r.Harness.State["overlays"].([]interface{}); ok {
-			// Look for the most recent Vite overlay.
 			for i := len(arr) - 1; i >= 0; i-- {
-				if m, ok := arr[i].(map[string]any); ok {
-					if overlayType, ok := m["type"].(string); ok && overlayType == "vite" {
-						hasViteOverlay = true
-						if t, ok := m["text"].(string); ok {
-							viteOverlayText = strings.TrimSpace(t)
-						}
-						break
+				m, ok := arr[i].(map[string]any)
+				if !ok {
+					continue
+				}
+				var typVal, msgVal, stackVal string
+				if typ, ok := m["type"].(string); ok {
+					typVal = strings.TrimSpace(typ)
+				}
+				if msg, ok := m["message"].(string); ok {
+					msgVal = strings.TrimSpace(msg)
+				}
+				if stack, ok := m["stack"].(string); ok {
+					stackVal = strings.TrimSpace(stack)
+				}
+				// Pick the most recent entry that has at least some error information.
+				if typVal != "" || msgVal != "" || stackVal != "" {
+					harnessTopType = typVal
+					harnessTopLine = msgVal
+					harnessTopStack = stackVal
+					break
+				}
+			}
+		}
+
+		// Most recent Vite overlay.
+		if arr, ok := r.Harness.State["overlays"].([]interface{}); ok {
+			for i := len(arr) - 1; i >= 0; i-- {
+				m, ok := arr[i].(map[string]any)
+				if !ok {
+					continue
+				}
+				if overlayType, ok := m["type"].(string); ok && overlayType == "vite" {
+					hasViteOverlay = true
+					if t, ok := m["text"].(string); ok {
+						viteOverlayText = strings.TrimSpace(t)
 					}
+					break
 				}
 			}
 		}
 	}
+
+	if harnessTopLine != "" {
+		harnessTopLine, _, _ = clampBody(harnessTopLine, 240)
+	}
+	if harnessTopStack != "" {
+		harnessTopStack, _, _ = clampBody(harnessTopStack, 800)
+	}
+	if harnessTopType != "" || harnessTopLine != "" {
+		harnessClass = ClassifyHarnessError(harnessTopType, harnessTopLine)
+	}
+
 	if viteOverlayText != "" {
 		viteOverlayText, _, _ = clampBody(viteOverlayText, 800)
+		viteOverlayTopLine = firstNonEmptyLine(viteOverlayText)
+		if viteOverlayTopLine != "" {
+			viteOverlayTopLine, _, _ = clampBody(viteOverlayTopLine, 240)
+		}
+		viteOverlayClass = ClassifyViteOverlay(viteOverlayText)
 	}
 
 	r.Summary = DiagnoseSummary{
 		HasConsoleErrors:  hasConsoleErrors,
 		HasHttp4xx5xx:     has4xx5xx,
 		HasFailedRequests: hasFailed,
-		HasHarnessErrors:  hasHarnessErrors,
-		HarnessErrorCount: harnessErrorCount,
-		HasViteOverlay:    hasViteOverlay,
-		ViteOverlayText:   viteOverlayText,
+
+		HasHarnessErrors:     hasHarnessErrors,
+		HarnessErrorCount:    harnessErrorCount,
+		HarnessErrorTopType:  harnessTopType,
+		HarnessErrorTopLine:  harnessTopLine,
+		HarnessErrorTopStack: harnessTopStack,
+		HarnessErrorClass:    harnessClass,
+
+		HasViteOverlay:     hasViteOverlay,
+		ViteOverlayText:    viteOverlayText,
+		ViteOverlayTopLine: viteOverlayTopLine,
+		ViteOverlayClass:   viteOverlayClass,
 	}
 }
 

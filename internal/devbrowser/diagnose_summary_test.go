@@ -8,10 +8,10 @@ func TestDiagnoseSummary_HarnessOverlay(t *testing.T) {
 	r.Network.Entries = nil
 	r.Harness.State = map[string]any{
 		"errors": []interface{}{
-			map[string]any{"time_ms": 1.0, "message": "boom"},
+			map[string]any{"time_ms": 1.0, "type": "error", "message": "TypeError: boom", "stack": "TypeError: boom\n  at App"},
 		},
 		"overlays": []interface{}{
-			map[string]any{"time_ms": 2.0, "type": "vite", "text": "Vite error overlay\n  at App"},
+			map[string]any{"time_ms": 2.0, "type": "vite", "text": "Failed to resolve import \"react\"\n  at App"},
 		},
 	}
 
@@ -28,6 +28,18 @@ func TestDiagnoseSummary_HarnessOverlay(t *testing.T) {
 	}
 	if r.Summary.ViteOverlayText == "" {
 		t.Fatalf("expected ViteOverlayText to be populated")
+	}
+	if r.Summary.ViteOverlayTopLine == "" {
+		t.Fatalf("expected ViteOverlayTopLine")
+	}
+	if r.Summary.ViteOverlayClass != "missing-module" {
+		t.Fatalf("expected ViteOverlayClass=missing-module, got %q", r.Summary.ViteOverlayClass)
+	}
+	if r.Summary.HarnessErrorTopLine == "" {
+		t.Fatalf("expected HarnessErrorTopLine")
+	}
+	if r.Summary.HarnessErrorClass != "type-error" {
+		t.Fatalf("expected HarnessErrorClass=type-error, got %q", r.Summary.HarnessErrorClass)
 	}
 }
 
@@ -50,6 +62,20 @@ func TestDiagnoseSummary_NoHarness(t *testing.T) {
 	}
 	if r.Summary.ViteOverlayText != "" {
 		t.Fatalf("expected ViteOverlayText empty")
+	}
+}
+
+func TestDiagnoseSummary_IgnoreNonViteOverlay(t *testing.T) {
+	r := &DiagnoseReport{}
+	r.Harness.State = map[string]any{
+		"errors": []interface{}{},
+		"overlays": []interface{}{
+			map[string]any{"time_ms": 2.0, "type": "webpack", "text": "some overlay"},
+		},
+	}
+	r.computeSummary()
+	if r.Summary.HasViteOverlay {
+		t.Fatalf("expected HasViteOverlay=false")
 	}
 }
 
