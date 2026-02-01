@@ -1,6 +1,7 @@
 package devbrowser
 
 import (
+	"math"
 	"sort"
 )
 
@@ -43,9 +44,11 @@ func BuildDiagnoseEvents(console []ConsoleEntry, network []NetworkEntry, harness
 					// Skip entries without valid time_ms to avoid distorting timeline
 					continue
 				}
+				if tm <= 0 || math.IsNaN(tm) || math.IsInf(tm, 0) {
+					continue
+				}
 				timeMs := int64(tm)
-				kind := "errorhook"
-				events = append(events, DiagnoseEvent{Kind: kind, TimeMS: timeMs, Data: m})
+				events = append(events, DiagnoseEvent{Kind: "errorhook", TimeMS: timeMs, Data: m})
 			}
 		}
 		if arr, ok := harness["overlays"].([]interface{}); ok {
@@ -57,6 +60,9 @@ func BuildDiagnoseEvents(console []ConsoleEntry, network []NetworkEntry, harness
 				tm, ok := m["time_ms"].(float64)
 				if !ok {
 					// Skip entries without valid time_ms to avoid distorting timeline
+					continue
+				}
+				if tm <= 0 || math.IsNaN(tm) || math.IsInf(tm, 0) {
 					continue
 				}
 				events = append(events, DiagnoseEvent{Kind: "overlay", TimeMS: int64(tm), Data: m})
@@ -84,8 +90,8 @@ func stableCompareData(a, b DiagnoseEvent) bool {
 	switch a.Kind {
 	case "console":
 		// Compare by id (if present), then text
-		idA, okA := a.Data["id"].(int64)
-		idB, okB := b.Data["id"].(int64)
+		idA, okA := int64Field(a.Data, "id")
+		idB, okB := int64Field(b.Data, "id")
 		if okA && okB && idA != idB {
 			return idA < idB
 		}
@@ -102,8 +108,8 @@ func stableCompareData(a, b DiagnoseEvent) bool {
 		if methodA != methodB {
 			return methodA < methodB
 		}
-		statusA, _ := a.Data["status"].(int)
-		statusB, _ := b.Data["status"].(int)
+		statusA := intField(a.Data, "status")
+		statusB := intField(b.Data, "status")
 		return statusA < statusB
 	case "errorhook":
 		// Compare by type+message+stack
@@ -131,4 +137,30 @@ func stringField(m map[string]any, key string) string {
 		return v
 	}
 	return ""
+}
+
+func intField(m map[string]any, key string) int {
+	switch v := m[key].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+func int64Field(m map[string]any, key string) (int64, bool) {
+	switch v := m[key].(type) {
+	case int64:
+		return v, true
+	case int:
+		return int64(v), true
+	case float64:
+		return int64(v), true
+	default:
+		return 0, false
+	}
 }
