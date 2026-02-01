@@ -84,8 +84,8 @@ func stableCompareData(a, b DiagnoseEvent) bool {
 	switch a.Kind {
 	case "console":
 		// Compare by id (if present), then text
-		idA, okA := a.Data["id"].(int)
-		idB, okB := b.Data["id"].(int)
+		idA, okA := a.Data["id"].(int64)
+		idB, okB := b.Data["id"].(int64)
 		if okA && okB && idA != idB {
 			return idA < idB
 		}

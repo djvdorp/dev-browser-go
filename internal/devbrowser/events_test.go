@@ -56,8 +56,17 @@ func TestBuildDiagnoseEvents_Ordering(t *testing.T) {
 				{TimeMS: 100, Type: "log", Text: "zebra", ID: 2},
 				{TimeMS: 100, Type: "log", Text: "apple", ID: 1},
 			},
-			// Deterministic ordering by stringify(Data) which uses text field
+			// Deterministic ordering by stableCompareData: compares by id (1<2), then text
 			want: []string{"console:100", "console:100"},
+		},
+		{
+			name: "same timestamp same kind - id ordering",
+			console: []ConsoleEntry{
+				{TimeMS: 100, Type: "log", Text: "same", ID: 3},
+				{TimeMS: 100, Type: "log", Text: "same", ID: 1},
+				{TimeMS: 100, Type: "log", Text: "same", ID: 2},
+			},
+			want: []string{"console:100", "console:100", "console:100"},
 		},
 		{
 			name: "harness events with missing time_ms are skipped",
@@ -113,6 +122,18 @@ func TestBuildDiagnoseEvents_Ordering(t *testing.T) {
 				}
 				if ev.Kind != wantKind || ev.TimeMS != wantTimeMS {
 					t.Errorf("event[%d] = %s:%d, want %s", i, ev.Kind, ev.TimeMS, want)
+				}
+			}
+
+			// Special verification for id-ordering test
+			if tt.name == "same timestamp same kind - id ordering" {
+				// Verify IDs are in ascending order
+				for i := 1; i < len(got); i++ {
+					prevID := got[i-1].Data["id"].(int64)
+					currID := got[i].Data["id"].(int64)
+					if prevID >= currID {
+						t.Errorf("IDs not in order: event[%d].id=%d >= event[%d].id=%d", i-1, prevID, i, currID)
+					}
 				}
 			}
 		})
