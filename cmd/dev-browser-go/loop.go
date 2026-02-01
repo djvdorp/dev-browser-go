@@ -180,16 +180,15 @@ func newLoopCmd() *cobra.Command {
 					}
 				}
 
-				// Watch mode: wait for changes.
-				deadline := time.Now().Add(time.Duration(watchIntervalMs) * time.Millisecond)
-				for time.Now().Before(deadline) {
-					time.Sleep(50 * time.Millisecond)
+				// Watch mode: block until we detect a change.
+				for {
+					time.Sleep(time.Duration(watchIntervalMs) * time.Millisecond)
+					cur := watchStamp(watchPaths)
+					if cur != lastStamp {
+						lastStamp = cur
+						break
+					}
 				}
-				cur := watchStamp(watchPaths)
-				if cur == lastStamp {
-					continue
-				}
-				lastStamp = cur
 			}
 		},
 	}
