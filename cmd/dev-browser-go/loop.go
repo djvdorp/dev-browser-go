@@ -159,19 +159,25 @@ func newLoopCmd() *cobra.Command {
 			for {
 				result, summary, runID, runDir, err := runOnce()
 				if err != nil {
-					return err
-				}
-
-				outObj := LoopOutput{RunID: runID, ArtifactDir: runDir, Summary: summary, Assert: result}
-				if err := writeLoopOutput(outObj); err != nil {
-					return err
-				}
-
-				if !watch {
-					if result.Passed {
-						return nil
+					if watch {
+						fmt.Fprintf(os.Stderr, "loop iteration error: %v\n", err)
+					} else {
+						return err
 					}
-					return devbrowser.ExitCodeError{Code: 2}
+				}
+
+				if err == nil {
+					outObj := LoopOutput{RunID: runID, ArtifactDir: runDir, Summary: summary, Assert: result}
+					if err := writeLoopOutput(outObj); err != nil {
+						return err
+					}
+
+					if !watch {
+						if result.Passed {
+							return nil
+						}
+						return devbrowser.ExitCodeError{Code: 2}
+					}
 				}
 
 				// Watch mode: wait for changes.
