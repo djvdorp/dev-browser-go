@@ -37,16 +37,22 @@ func TestEvaluateAssert_Failures(t *testing.T) {
 	report.Network.Entries = []NetworkEntry{{URL: "https://x", Method: "GET", Status: 500, OK: false}}
 	report.Perf = map[string]any{"cwv": map[string]any{"lcp": 3000.0, "cls": 0.25}}
 	report.Harness.State = map[string]any{
-		"errors":   []interface{}{map[string]any{"time_ms": 1.0, "message": "boom"}},
-		"overlays": []interface{}{map[string]any{"time_ms": 2.0, "text": "vite overlay"}},
+		"errors":   []interface{}{map[string]any{"time_ms": 1.0, "type": "error", "message": "boom"}},
+		"overlays": []interface{}{map[string]any{"time_ms": 2.0, "type": "vite", "text": "Failed to resolve import 'x'"}},
 	}
+	report.computeSummary()
 
 	rules := &AssertRules{
 		MaxConsole: map[string]int{"error": 0},
 		Network:    &AssertNetwork{MaxFailed: 0, MaxStatus: &AssertStatusCount{Min: 400, Count: 0}},
 		Selectors:  []AssertSelector{{Selector: ".error", Max: intPtr(0)}},
 		Perf:       &AssertPerf{LCPMaxMs: floatPtr(2500), CLSMax: floatPtr(0.1)},
-		Harness:    &AssertHarness{MaxErrors: intPtr(0), MaxOverlays: intPtr(0)},
+		Harness: &AssertHarness{
+			MaxErrors:                   intPtr(0),
+			MaxOverlays:                 intPtr(0),
+			ViteOverlayTextContains:     []string{"failed to resolve import"},
+			HarnessErrorMessageContains: []string{"boom"},
+		},
 	}
 
 	selectorCounts := map[string]int{".error": 1}
@@ -65,6 +71,7 @@ func TestEvaluateAssert_Pass(t *testing.T) {
 	report.Network.Entries = []NetworkEntry{{URL: "https://x", Method: "GET", Status: 200, OK: true}}
 	report.Perf = map[string]any{"cwv": map[string]any{"lcp": 1200.0, "cls": 0.01}}
 	report.Harness.State = map[string]any{"errors": []interface{}{}, "overlays": []interface{}{}}
+	report.computeSummary()
 
 	rules := &AssertRules{
 		MaxConsole: map[string]int{"error": 0},
