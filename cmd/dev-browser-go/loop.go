@@ -161,10 +161,13 @@ func newLoopCmd() *cobra.Command {
 			runs := 0
 			var lastResult devbrowser.AssertResult
 			var lastSummary devbrowser.DiagnoseSummary
+			hasLast := false
+			var lastErr error
 
 			for {
 				result, summary, runID, runDir, err := runOnce()
 				if err != nil {
+					lastErr = err
 					if watch {
 						fmt.Fprintf(os.Stderr, "loop iteration error: %v\n", err)
 						// simple backoff to avoid tight error loops
@@ -173,6 +176,8 @@ func newLoopCmd() *cobra.Command {
 						return err
 					}
 				} else {
+					lastErr = nil
+					hasLast = true
 					lastResult = result
 					lastSummary = summary
 					outObj := LoopOutput{RunID: runID, ArtifactDir: runDir, Summary: summary, Assert: result}
@@ -191,17 +196,29 @@ func newLoopCmd() *cobra.Command {
 				if watch {
 					runs++
 					if watchMaxRuns > 0 && runs >= watchMaxRuns {
-						// exit with last known assert result
-						if lastResult.Passed {
-							return nil
+						// exit with last known result (or last error)
+						if hasLast {
+							if lastResult.Passed {
+								return nil
+							}
+							return devbrowser.ExitCodeError{Code: 2}
+						}
+						if lastErr != nil {
+							return lastErr
 						}
 						return devbrowser.ExitCodeError{Code: 2}
 					}
 					if watchTimeoutMs > 0 && time.Since(watchStart) >= time.Duration(watchTimeoutMs)*time.Millisecond {
-						if lastResult.Passed {
-							return nil
+						if hasLast {
+							if lastResult.Passed {
+								return nil
+							}
+							_ = lastSummary
+							return devbrowser.ExitCodeError{Code: 2}
 						}
-						_ = lastSummary
+						if lastErr != nil {
+							return lastErr
+						}
 						return devbrowser.ExitCodeError{Code: 2}
 					}
 				}
