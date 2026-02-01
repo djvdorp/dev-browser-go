@@ -43,6 +43,16 @@ These conventions are here to keep behavior predictable for CLI agents, CI, and 
   - findings/diffs: by rule/id then location
 - Prefer stable IDs/keys in outputs.
 
+## AI review (Copilot CLI)
+
+Before opening a PR, run an offline Copilot review over the local diff:
+
+```bash
+./scripts/copilot_review_diff.sh origin/main origin/main...HEAD
+```
+
+This is meant to catch obvious edge cases and determinism/test gaps without relying on the GitHub PR UI.
+
 ## JavaScript injection + Evaluate
 
 - Prefer adding reusable helpers into the injected bundle (`internal/devbrowser/snapshot_assets/base_snapshot.js`) under `globalThis.__devBrowser_*`.
