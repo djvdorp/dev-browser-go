@@ -327,13 +327,17 @@ func (r *DiagnoseReport) computeSummary() {
 			harnessErrorCount = len(arr)
 			hasHarnessErrors = harnessErrorCount > 0
 		}
-		if arr, ok := r.Harness.State["overlays"].([]interface{}); ok && len(arr) > 0 {
-			hasViteOverlay = true
-			// Try to pull the most recent overlay text.
-			last := arr[len(arr)-1]
-			if m, ok := last.(map[string]any); ok {
-				if t, ok := m["text"].(string); ok {
-					viteOverlayText = strings.TrimSpace(t)
+		if arr, ok := r.Harness.State["overlays"].([]interface{}); ok {
+			// Look for the most recent Vite overlay.
+			for i := len(arr) - 1; i >= 0; i-- {
+				if m, ok := arr[i].(map[string]any); ok {
+					if overlayType, ok := m["type"].(string); ok && overlayType == "vite" {
+						hasViteOverlay = true
+						if t, ok := m["text"].(string); ok {
+							viteOverlayText = strings.TrimSpace(t)
+						}
+						break
+					}
 				}
 			}
 		}
