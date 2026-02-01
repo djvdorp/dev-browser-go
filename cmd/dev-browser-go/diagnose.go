@@ -51,19 +51,18 @@ func newDiagnoseCmd() *cobra.Command {
 			defer pw.Stop()
 
 			ts := time.Now()
-			runID := devbrowser.NewDiagnoseRunID()
-			root := devbrowser.ArtifactDir(globalOpts.profile)
+			ctx := devbrowser.NewRunContext(devbrowser.RunOptions{
+				Profile:   globalOpts.profile,
+				Timestamp: ts,
+			})
+			runID := ctx.RunID
 			runDir := ""
 			if mode != devbrowser.ArtifactModeNone {
-				if artifactDir != "" {
-					// When user passes a relative path, treat it as relative to artifact root.
-					runDir, err = devbrowser.SafeArtifactPath(root, artifactDir, "")
-					if err != nil {
-						return err
-					}
-				} else {
-					runDir = devbrowser.DefaultRunArtifactDir(root, runID, ts)
+				runDir, err = ctx.ResolveRunDir(artifactDir)
+				if err != nil {
+					return err
 				}
+				_ = ctx.EnsureDir(runDir)
 			}
 
 			report, err := devbrowser.Diagnose(page, devbrowser.DiagnoseOptions{
@@ -135,6 +134,9 @@ func readConsoleEntries(base, pageName string, limit int) ([]devbrowser.ConsoleE
 		return nil, fmt.Errorf("console failed: %v", data["error"])
 	}
 	entriesAny, _ := data["entries"].([]interface{})
+	if entriesAny == nil {
+		entriesAny, _ = data["logs"].([]interface{})
+	}
 	b, _ := json.Marshal(entriesAny)
 	var entries []devbrowser.ConsoleEntry
 	_ = json.Unmarshal(b, &entries)
