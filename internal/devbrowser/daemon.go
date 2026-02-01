@@ -243,7 +243,13 @@ func (d *Daemon) handlePageSubresource(w http.ResponseWriter, r *http.Request) {
 	logs = selectConsoleLogs(logs, levelFilter, since, limit)
 	SortConsoleEntries(logs)
 	if len(logs) > 0 {
-		lastID = logs[len(logs)-1].ID
+		maxID := logs[0].ID
+		for i := 1; i < len(logs); i++ {
+			if logs[i].ID > maxID {
+				maxID = logs[i].ID
+			}
+		}
+		lastID = maxID
 	}
 
 	d.writeJSON(w, http.StatusOK, map[string]any{

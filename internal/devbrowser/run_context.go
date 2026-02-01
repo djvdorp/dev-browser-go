@@ -65,7 +65,7 @@ func NewRunContext(opts RunOptions) RunContext {
 }
 
 func NewRunContextFromProfile(profile string) RunContext {
-	return NewRunContext(RunOptions{Profile: profile, ArtifactRoot: ArtifactDir(profile)})
+	return NewRunContext(RunOptions{Profile: profile})
 }
 
 func (c RunContext) DefaultRunDir() string {
