@@ -8,8 +8,7 @@ import (
 
 // CountSelector returns document.querySelectorAll(selector).length.
 func CountSelector(page playwright.Page, selector string) (int, error) {
-	js := `() => {
-  const sel = arguments[0];
+	js := `(sel) => {
   try {
     return document.querySelectorAll(String(sel)).length;
   } catch (e) {

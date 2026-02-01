@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	devbrowser "github.com/joshp123/dev-browser-go/internal/devbrowser"
@@ -77,16 +78,42 @@ func newAssertCmd() *cobra.Command {
 			}
 
 			selectorCounts := map[string]int{}
+			selectorEvalErr := map[string]string{}
 			for _, sel := range rules.Selectors {
 				count, err := devbrowser.CountSelector(page, sel.Selector)
 				if err != nil {
-					// treat eval errors as count 0, but still surface via a failed check
+					selectorEvalErr[sel.Selector] = err.Error()
 					count = 0
 				}
 				selectorCounts[sel.Selector] = count
 			}
 
 			result := devbrowser.EvaluateAssert(report, rules, selectorCounts, nil)
+
+			// Attach deterministic previews for failed selector checks (best-effort).
+			for i := range result.FailedChecks {
+				id := result.FailedChecks[i].ID
+				if id != "selectors.min" && id != "selectors.max" {
+					continue
+				}
+				ctx := result.FailedChecks[i].Context
+				if ctx == nil {
+					ctx = map[string]any{}
+				}
+				selRaw, _ := ctx["selector"].(string)
+				selStr := strings.TrimSpace(selRaw)
+				if selStr == "" {
+					continue
+				}
+				if errMsg, ok := selectorEvalErr[selStr]; ok {
+					ctx["evalError"] = errMsg
+				}
+				preview, err := devbrowser.SelectorPreview(page, selStr, devbrowser.SelectorPreviewOptions{Limit: 5, TextMaxChars: 120})
+				if err == nil {
+					ctx["preview"] = preview
+				}
+				result.FailedChecks[i].Context = ctx
+			}
 			_ = devbrowser.WriteDiagnoseArtifacts(report, mode)
 			_, _ = devbrowser.WriteAssertArtifacts(runDir, result, mode)
 
