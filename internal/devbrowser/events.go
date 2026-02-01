@@ -83,7 +83,7 @@ func BuildDiagnoseEvents(console []ConsoleEntry, network []NetworkEntry, harness
 func stableCompareData(a, b DiagnoseEvent) bool {
 	switch a.Kind {
 	case "console":
-		// Compare by id first (guaranteed unique), then text
+		// Compare by id (if present), then text
 		idA, okA := a.Data["id"].(int)
 		idB, okB := b.Data["id"].(int)
 		if okA && okB && idA != idB {

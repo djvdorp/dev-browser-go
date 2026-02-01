@@ -75,10 +75,10 @@
       const ov = readViteOverlay();
       if (ov && ov.detected) {
         const text = ov.text || '';
-        // Record overlay when detected, even if text extraction failed
+        // Record overlay when detected, even if text extraction failed (store empty string as null)
         if (text !== state.lastOverlayText) {
           state.lastOverlayText = text;
-          state.overlays.push({ type: 'vite', time_ms: nowMs(), text: text || null });
+          state.overlays.push({ type: 'vite', time_ms: nowMs(), text: text === '' ? null : text });
           if (state.overlays.length > 50) state.overlays = state.overlays.slice(state.overlays.length - 50);
         }
       }
