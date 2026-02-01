@@ -65,6 +65,20 @@ func TestDiagnoseSummary_NoHarness(t *testing.T) {
 	}
 }
 
+func TestDiagnoseSummary_IgnoreNonViteOverlay(t *testing.T) {
+	r := &DiagnoseReport{}
+	r.Harness.State = map[string]any{
+		"errors": []interface{}{},
+		"overlays": []interface{}{
+			map[string]any{"time_ms": 2.0, "type": "webpack", "text": "some overlay"},
+		},
+	}
+	r.computeSummary()
+	if r.Summary.HasViteOverlay {
+		t.Fatalf("expected HasViteOverlay=false")
+	}
+}
+
 func TestDiagnoseSummary_ViteOverlayTextClamped(t *testing.T) {
 	long := make([]byte, 2000)
 	for i := range long {

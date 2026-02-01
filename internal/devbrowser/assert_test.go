@@ -65,6 +65,35 @@ func TestEvaluateAssert_Failures(t *testing.T) {
 	}
 }
 
+func TestEvaluateAssert_TextMatchFailure(t *testing.T) {
+	report := &DiagnoseReport{}
+	report.Console.Counts = DiagnoseConsoleCounts{Error: 0, Warning: 0, Info: 0}
+	report.Network.Entries = []NetworkEntry{{URL: "https://x", Method: "GET", Status: 200, OK: true}}
+	report.Perf = map[string]any{"cwv": map[string]any{"lcp": 1200.0, "cls": 0.01}}
+	report.Harness.State = map[string]any{
+		"errors":   []interface{}{map[string]any{"time_ms": 1.0, "type": "error", "message": "boom"}},
+		"overlays": []interface{}{map[string]any{"time_ms": 2.0, "type": "vite", "text": "TypeError: nope"}},
+	}
+	report.computeSummary()
+
+	rules := &AssertRules{
+		Harness: &AssertHarness{
+			MaxErrors:                   intPtr(1),
+			MaxOverlays:                 intPtr(1),
+			ViteOverlayTextContains:     []string{"failed to resolve import"},
+			HarnessErrorMessageContains: []string{"does-not-occur"},
+		},
+	}
+
+	res := EvaluateAssert(report, rules, nil, nil)
+	if res.Passed {
+		t.Fatalf("expected failed")
+	}
+	if len(res.FailedChecks) == 0 {
+		t.Fatalf("expected failed checks")
+	}
+}
+
 func TestEvaluateAssert_Pass(t *testing.T) {
 	report := &DiagnoseReport{}
 	report.Console.Counts = DiagnoseConsoleCounts{Error: 0, Warning: 0, Info: 0}
