@@ -65,6 +65,8 @@ The daemon starts automatically on first command and keeps the browser session a
 
 ### Harness Commands (MVP)
 
+See also: `./examples/README.md` for a React dev workflow.
+
 These commands are designed for autonomous agent loops and CI: structured JSON, low flake, headless-first.
 
 ```bash

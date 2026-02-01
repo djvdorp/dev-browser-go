@@ -1,0 +1,14 @@
+{
+  "maxConsole": { "error": 0 },
+  "network": {
+    "maxFailed": 0,
+    "maxStatus": { "min": 400, "count": 0 }
+  },
+  "selectors": [
+    { "selector": "#root", "min": 1 }
+  ],
+  "perf": {
+    "lcpMaxMs": 3500,
+    "clsMax": 0.15
+  }
+}
