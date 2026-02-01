@@ -52,3 +52,30 @@ func TestDiagnoseSummary_NoHarness(t *testing.T) {
 		t.Fatalf("expected ViteOverlayText empty")
 	}
 }
+
+func TestDiagnoseSummary_ViteOverlayTextClamped(t *testing.T) {
+	long := make([]byte, 2000)
+	for i := range long {
+		long[i] = 'a'
+	}
+
+	r := &DiagnoseReport{}
+	r.Harness.State = map[string]any{
+		"errors": []interface{}{},
+		"overlays": []interface{}{
+			map[string]any{"time_ms": 2.0, "type": "vite", "text": string(long)},
+		},
+	}
+
+	r.computeSummary()
+
+	if !r.Summary.HasViteOverlay {
+		t.Fatalf("expected HasViteOverlay")
+	}
+	if len(r.Summary.ViteOverlayText) == 0 {
+		t.Fatalf("expected ViteOverlayText")
+	}
+	if len(r.Summary.ViteOverlayText) > 900 {
+		t.Fatalf("expected clamped ViteOverlayText <= ~800 chars, got %d", len(r.Summary.ViteOverlayText))
+	}
+}
