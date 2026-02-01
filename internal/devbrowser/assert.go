@@ -15,6 +15,12 @@ type AssertRules struct {
 	Network    *AssertNetwork   `json:"network,omitempty"`
 	Selectors  []AssertSelector `json:"selectors,omitempty"`
 	Perf       *AssertPerf      `json:"perf,omitempty"`
+	Harness    *AssertHarness   `json:"harness,omitempty"`
+}
+
+type AssertHarness struct {
+	MaxErrors   *int `json:"maxErrors,omitempty"`
+	MaxOverlays *int `json:"maxOverlays,omitempty"`
 }
 
 type AssertNetwork struct {
@@ -182,6 +188,30 @@ func EvaluateAssert(report *DiagnoseReport, rules *AssertRules, selectorCounts m
 		if sel.Max != nil && count > *sel.Max {
 			res.Passed = false
 			res.FailedChecks = append(res.FailedChecks, AssertFailedCheck{ID: "selectors.max", Message: fmt.Sprintf("selector %q count %d > max %d", sel.Selector, count, *sel.Max), Context: map[string]any{"selector": sel.Selector, "count": count, "max": *sel.Max}})
+		}
+	}
+
+	// harness checks.
+	if rules.Harness != nil {
+		errorsCount := 0
+		overlaysCount := 0
+		if report.Harness.State != nil {
+			if arr, ok := report.Harness.State["errors"].([]interface{}); ok {
+				errorsCount = len(arr)
+			}
+			if arr, ok := report.Harness.State["overlays"].([]interface{}); ok {
+				overlaysCount = len(arr)
+			}
+		}
+		ctx["harness"] = map[string]any{"errors": errorsCount, "overlays": overlaysCount}
+
+		if rules.Harness.MaxErrors != nil && errorsCount > *rules.Harness.MaxErrors {
+			res.Passed = false
+			res.FailedChecks = append(res.FailedChecks, AssertFailedCheck{ID: "harness.maxErrors", Message: fmt.Sprintf("harness errors %d > max %d", errorsCount, *rules.Harness.MaxErrors), Context: map[string]any{"count": errorsCount, "max": *rules.Harness.MaxErrors}})
+		}
+		if rules.Harness.MaxOverlays != nil && overlaysCount > *rules.Harness.MaxOverlays {
+			res.Passed = false
+			res.FailedChecks = append(res.FailedChecks, AssertFailedCheck{ID: "harness.maxOverlays", Message: fmt.Sprintf("harness overlays %d > max %d", overlaysCount, *rules.Harness.MaxOverlays), Context: map[string]any{"count": overlaysCount, "max": *rules.Harness.MaxOverlays}})
 		}
 	}
 

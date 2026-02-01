@@ -21,6 +21,7 @@ type DaemonState struct {
 	Profile    string `json:"profile"`
 	CDPPort    int    `json:"cdpPort"`
 	WSEndpoint string `json:"wsEndpoint"`
+	Version    string `json:"version"`
 }
 
 func ReadState(profile string) (*DaemonState, error) {
@@ -97,7 +98,17 @@ func IsDaemonHealthy(profile string) bool {
 
 func StartDaemon(profile string, headless bool, window *WindowSize, device string) error {
 	if IsDaemonHealthy(profile) {
-		return nil
+		// If daemon is healthy but version is stale, restart it so embedded assets (like harness init)
+		// are applied predictably.
+		if st, err := ReadState(profile); err == nil && st != nil {
+			if strings.TrimSpace(st.Version) != "" && strings.TrimSpace(st.Version) != DaemonVersion() {
+				_, _ = StopDaemon(profile)
+			} else {
+				return nil
+			}
+		} else {
+			return nil
+		}
 	}
 	if window != nil && strings.TrimSpace(device) != "" {
 		return errors.New("use either --window-size/--window-scale or --device")
