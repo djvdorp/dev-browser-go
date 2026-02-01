@@ -100,9 +100,13 @@ type DiagnoseArtifacts struct {
 }
 
 type DiagnoseSummary struct {
-	HasConsoleErrors  bool `json:"hasConsoleErrors"`
-	HasHttp4xx5xx     bool `json:"hasHttp4xx5xx"`
-	HasFailedRequests bool `json:"hasFailedRequests"`
+	HasConsoleErrors  bool   `json:"hasConsoleErrors"`
+	HasHttp4xx5xx     bool   `json:"hasHttp4xx5xx"`
+	HasFailedRequests bool   `json:"hasFailedRequests"`
+	HasHarnessErrors  bool   `json:"hasHarnessErrors"`
+	HarnessErrorCount int    `json:"harnessErrorCount"`
+	HasViteOverlay    bool   `json:"hasViteOverlay"`
+	ViteOverlayText   string `json:"viteOverlayText,omitempty"`
 }
 
 type DiagnoseEvent struct {
@@ -313,10 +317,39 @@ func (r *DiagnoseReport) computeSummary() {
 		}
 	}
 
+	// Harness.
+	hasHarnessErrors := false
+	harnessErrorCount := 0
+	hasViteOverlay := false
+	viteOverlayText := ""
+	if r.Harness.State != nil {
+		if arr, ok := r.Harness.State["errors"].([]interface{}); ok {
+			harnessErrorCount = len(arr)
+			hasHarnessErrors = harnessErrorCount > 0
+		}
+		if arr, ok := r.Harness.State["overlays"].([]interface{}); ok && len(arr) > 0 {
+			hasViteOverlay = true
+			// Try to pull the most recent overlay text.
+			last := arr[len(arr)-1]
+			if m, ok := last.(map[string]any); ok {
+				if t, ok := m["text"].(string); ok {
+					viteOverlayText = strings.TrimSpace(t)
+				}
+			}
+		}
+	}
+	if viteOverlayText != "" {
+		viteOverlayText, _, _ = clampBody(viteOverlayText, 800)
+	}
+
 	r.Summary = DiagnoseSummary{
 		HasConsoleErrors:  hasConsoleErrors,
 		HasHttp4xx5xx:     has4xx5xx,
 		HasFailedRequests: hasFailed,
+		HasHarnessErrors:  hasHarnessErrors,
+		HarnessErrorCount: harnessErrorCount,
+		HasViteOverlay:    hasViteOverlay,
+		ViteOverlayText:   viteOverlayText,
 	}
 }
 
