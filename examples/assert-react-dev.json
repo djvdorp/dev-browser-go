@@ -13,6 +13,8 @@
   },
   "harness": {
     "maxErrors": 0,
-    "maxOverlays": 0
+    "maxOverlays": 0,
+    "viteOverlayTextContains": [],
+    "harnessErrorMessageContains": []
   }
 }
