@@ -66,6 +66,7 @@ func init() {
 		newAssetSnapshotCmd(),
 		newDiagnoseCmd(),
 		newAssertCmd(),
+		newLoopCmd(),
 		newHTMLValidateCmd(),
 	)
 }
