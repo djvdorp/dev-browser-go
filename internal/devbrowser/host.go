@@ -212,6 +212,11 @@ func (b *BrowserHost) startLocked() error {
 		return fmt.Errorf("launch context: %w", err)
 	}
 	context.SetDefaultTimeout(15_000)
+	if err := InstallHarnessInit(context); err != nil {
+		context.Close()
+		pw.Stop()
+		return fmt.Errorf("install harness init: %w", err)
+	}
 
 	ws, err := waitForWSEndpoint(b.cdpPort, 10*time.Second)
 	if err != nil {
@@ -260,6 +265,9 @@ func (b *BrowserHost) attachConsoleLocked(name string, page playwright.Page) {
 	if holder.consoleHooked {
 		return
 	}
+	// Ensure harness init is installed for this page/document.
+	EnsureHarnessOnPage(page)
+
 	page.OnConsole(func(msg playwright.ConsoleMessage) {
 		if b.logs != nil {
 			b.logs.append(name, msg)

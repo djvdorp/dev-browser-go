@@ -105,12 +105,24 @@ type DiagnoseSummary struct {
 	HasFailedRequests bool `json:"hasFailedRequests"`
 }
 
+type DiagnoseEvent struct {
+	Kind   string         `json:"kind"` // console|network|errorhook|overlay
+	TimeMS int64          `json:"time_ms"`
+	Data   map[string]any `json:"data"`
+}
+
+type DiagnoseHarnessSection struct {
+	State map[string]any `json:"state"`
+}
+
 type DiagnoseReport struct {
 	Meta      DiagnoseMeta            `json:"meta"`
 	Console   DiagnoseConsoleSection  `json:"console"`
 	Network   DiagnoseNetworkSection  `json:"network"`
 	Perf      map[string]any          `json:"perf"`
 	Snapshot  DiagnoseSnapshotSection `json:"snapshot"`
+	Harness   DiagnoseHarnessSection  `json:"harness"`
+	Events    []DiagnoseEvent         `json:"events"`
 	Artifacts DiagnoseArtifacts       `json:"artifacts"`
 	Summary   DiagnoseSummary         `json:"summary"`
 }
@@ -236,13 +248,23 @@ func Diagnose(page playwright.Page, opts DiagnoseOptions) (*DiagnoseReport, erro
 		Network:  DiagnoseNetworkSection{Total: total, Matched: matched, Entries: netEntries},
 		Perf:     perf,
 		Snapshot: DiagnoseSnapshotSection{Engine: opts.SnapshotEngine, YAML: snap.Yaml, Items: snap.Items},
+		Harness:  DiagnoseHarnessSection{State: nil},
+		Events:   []DiagnoseEvent{},
 		Artifacts: DiagnoseArtifacts{
 			Screenshot: shotPath,
 		},
 	}
 
+	// Harness state (JS hooks + Vite overlay best-effort).
+	if hs, err := ReadHarnessState(page); err == nil && hs != nil {
+		report.Harness.State = hs
+	}
+
 	// Deterministic ordering.
 	SortNetworkEntries(report.Network.Entries)
+
+	// Build combined timeline events (console is populated later via SetConsole).
+	report.Events = BuildDiagnoseEvents(nil, report.Network.Entries, report.Harness.State)
 
 	report.computeSummary()
 	return report, nil
@@ -270,6 +292,8 @@ func (r *DiagnoseReport) SetConsole(entries []ConsoleEntry) {
 		}
 	}
 	r.Console = DiagnoseConsoleSection{Entries: entries, Counts: counts}
+	// Rebuild events when console is populated.
+	r.Events = BuildDiagnoseEvents(r.Console.Entries, r.Network.Entries, r.Harness.State)
 	r.computeSummary()
 }
 
