@@ -1,8 +1,8 @@
 package devbrowser
 
 import (
+	"math"
 	"sort"
-	"strings"
 )
 
 func BuildDiagnoseEvents(console []ConsoleEntry, network []NetworkEntry, harness map[string]any) []DiagnoseEvent {
@@ -39,13 +39,16 @@ func BuildDiagnoseEvents(console []ConsoleEntry, network []NetworkEntry, harness
 				if !ok {
 					continue
 				}
-				tm, _ := m["time_ms"].(float64)
-				timeMs := int64(tm)
-				kind := "errorhook"
-				if t, _ := m["type"].(string); strings.TrimSpace(t) != "" {
-					// keep the type inside data; kind stays stable
+				tm, ok := m["time_ms"].(float64)
+				if !ok {
+					// Skip entries without valid time_ms to avoid distorting timeline
+					continue
 				}
-				events = append(events, DiagnoseEvent{Kind: kind, TimeMS: timeMs, Data: m})
+				if tm <= 0 || math.IsNaN(tm) || math.IsInf(tm, 0) {
+					continue
+				}
+				timeMs := int64(tm)
+				events = append(events, DiagnoseEvent{Kind: "errorhook", TimeMS: timeMs, Data: m})
 			}
 		}
 		if arr, ok := harness["overlays"].([]interface{}); ok {
@@ -54,34 +57,110 @@ func BuildDiagnoseEvents(console []ConsoleEntry, network []NetworkEntry, harness
 				if !ok {
 					continue
 				}
-				tm, _ := m["time_ms"].(float64)
+				tm, ok := m["time_ms"].(float64)
+				if !ok {
+					// Skip entries without valid time_ms to avoid distorting timeline
+					continue
+				}
+				if tm <= 0 || math.IsNaN(tm) || math.IsInf(tm, 0) {
+					continue
+				}
 				events = append(events, DiagnoseEvent{Kind: "overlay", TimeMS: int64(tm), Data: m})
 			}
 		}
 	}
 
-	sort.Slice(events, func(i, j int) bool {
-		if events[i].TimeMS == events[j].TimeMS {
-			if events[i].Kind == events[j].Kind {
-				return stringify(events[i].Data) < stringify(events[j].Data)
-			}
+	// Use stable sort with complete tie-breakers for deterministic output
+	sort.SliceStable(events, func(i, j int) bool {
+		if events[i].TimeMS != events[j].TimeMS {
+			return events[i].TimeMS < events[j].TimeMS
+		}
+		if events[i].Kind != events[j].Kind {
 			return events[i].Kind < events[j].Kind
 		}
-		return events[i].TimeMS < events[j].TimeMS
+		// Stable tie-breakers by kind
+		return stableCompareData(events[i], events[j])
 	})
 
 	return events
 }
 
-func stringify(m map[string]any) string {
-	if m == nil {
-		return ""
+// stableCompareData provides deterministic ordering for events with same TimeMS and Kind
+func stableCompareData(a, b DiagnoseEvent) bool {
+	switch a.Kind {
+	case "console":
+		// Compare by id (if present), then text
+		idA, okA := int64Field(a.Data, "id")
+		idB, okB := int64Field(b.Data, "id")
+		if okA && okB && idA != idB {
+			return idA < idB
+		}
+		return stringField(a.Data, "text") < stringField(b.Data, "text")
+	case "network":
+		// Compare by url+method+status
+		urlA := stringField(a.Data, "url")
+		urlB := stringField(b.Data, "url")
+		if urlA != urlB {
+			return urlA < urlB
+		}
+		methodA := stringField(a.Data, "method")
+		methodB := stringField(b.Data, "method")
+		if methodA != methodB {
+			return methodA < methodB
+		}
+		statusA := intField(a.Data, "status")
+		statusB := intField(b.Data, "status")
+		return statusA < statusB
+	case "errorhook":
+		// Compare by type+message+stack
+		typeA := stringField(a.Data, "type")
+		typeB := stringField(b.Data, "type")
+		if typeA != typeB {
+			return typeA < typeB
+		}
+		msgA := stringField(a.Data, "message")
+		msgB := stringField(b.Data, "message")
+		if msgA != msgB {
+			return msgA < msgB
+		}
+		return stringField(a.Data, "stack") < stringField(b.Data, "stack")
+	case "overlay":
+		// Compare by text
+		return stringField(a.Data, "text") < stringField(b.Data, "text")
+	default:
+		return false
 	}
-	if v, ok := m["url"].(string); ok {
-		return v
-	}
-	if v, ok := m["text"].(string); ok {
+}
+
+func stringField(m map[string]any, key string) string {
+	if v, ok := m[key].(string); ok {
 		return v
 	}
 	return ""
+}
+
+func intField(m map[string]any, key string) int {
+	switch v := m[key].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+func int64Field(m map[string]any, key string) (int64, bool) {
+	switch v := m[key].(type) {
+	case int64:
+		return v, true
+	case int:
+		return int64(v), true
+	case float64:
+		return int64(v), true
+	default:
+		return 0, false
+	}
 }

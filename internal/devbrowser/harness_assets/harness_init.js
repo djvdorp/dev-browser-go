@@ -73,10 +73,15 @@
   function pollOverlay() {
     try {
       const ov = readViteOverlay();
-      if (ov && ov.text && ov.text !== state.lastOverlayText) {
-        state.lastOverlayText = ov.text;
-        state.overlays.push({ type: 'vite', time_ms: nowMs(), text: ov.text });
-        if (state.overlays.length > 50) state.overlays = state.overlays.slice(state.overlays.length - 50);
+      if (ov && ov.detected) {
+        // Record overlay when detected, even if text extraction failed
+        // Store empty/missing text as null
+        const text = ov.text || null;
+        if (text !== state.lastOverlayText) {
+          state.lastOverlayText = text;
+          state.overlays.push({ type: 'vite', time_ms: nowMs(), text: text });
+          if (state.overlays.length > 50) state.overlays = state.overlays.slice(state.overlays.length - 50);
+        }
       }
     } catch {}
   }
