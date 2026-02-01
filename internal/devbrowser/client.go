@@ -101,8 +101,10 @@ func StartDaemon(profile string, headless bool, window *WindowSize, device strin
 		// If daemon is healthy but version is stale, restart it so embedded assets (like harness init)
 		// are applied predictably.
 		if st, err := ReadState(profile); err == nil && st != nil {
-			if strings.TrimSpace(st.Version) != "" && strings.TrimSpace(st.Version) != DaemonVersion() {
-				_, _ = StopDaemon(profile)
+			if strings.TrimSpace(st.Version) == "" || strings.TrimSpace(st.Version) != DaemonVersion() {
+				if _, err := StopDaemon(profile); err != nil {
+					return fmt.Errorf("failed to stop existing dev-browser daemon (profile=%s): %w", profile, err)
+				}
 			} else {
 				return nil
 			}
