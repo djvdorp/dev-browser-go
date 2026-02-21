@@ -32,6 +32,30 @@ func withNoopRunE(cmd *cobra.Command) *cobra.Command {
 
 // --- save-html tests ---------------------------------------------------------
 
+// TestBuildSaveHTMLPayload tests the payload helper directly — this is the
+// layer that had the original bug (empty "path" being sent to the daemon).
+func TestBuildSaveHTMLPayload(t *testing.T) {
+	cases := []struct {
+		input   string
+		wantKey bool
+	}{
+		{"", false},
+		{"   ", false},
+		{"out.html", true},
+		{" out.html ", true},
+	}
+	for _, tc := range cases {
+		payload := buildSaveHTMLPayload(tc.input)
+		_, hasPath := payload["path"]
+		if hasPath != tc.wantKey {
+			t.Errorf("buildSaveHTMLPayload(%q): path key present=%v, want %v", tc.input, hasPath, tc.wantKey)
+		}
+		if tc.wantKey && payload["path"] != strings.TrimSpace(tc.input) {
+			t.Errorf("buildSaveHTMLPayload(%q): path value=%q, want %q", tc.input, payload["path"], strings.TrimSpace(tc.input))
+		}
+	}
+}
+
 func TestSaveHTMLNoPathSucceeds(t *testing.T) {
 	root := newTestRoot()
 	root.AddCommand(withNoopRunE(newSaveHTMLCmd()))

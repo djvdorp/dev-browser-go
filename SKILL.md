@@ -36,8 +36,8 @@ dev-browser-go save-html                    # Save page HTML to default artifact
 dev-browser-go save-html --path page.html   # Save page HTML to specified path
 ```
 
-Note: `--output` and `--out` are global serialization flags (controls format/destination of the
-command result JSON). `--path` on `save-html` (and `asset-snapshot`, `save-baseline`) is the
+Note: `--output` and `--out` are global output flags (control the format and destination of the
+command result). `--path` on `save-html` (and `asset-snapshot`, `save-baseline`) is the
 artifact file path written by the tool itself.
 
 ## Core Workflow
