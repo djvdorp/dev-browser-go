@@ -1,8 +1,21 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/spf13/cobra"
 )
+
+// buildSaveHTMLPayload constructs the daemon payload for save_html.
+// When path is empty or whitespace-only the "path" key is omitted,
+// letting the daemon choose the default artifact filename.
+func buildSaveHTMLPayload(path string) map[string]interface{} {
+	payload := map[string]interface{}{}
+	if trimmed := strings.TrimSpace(path); trimmed != "" {
+		payload["path"] = trimmed
+	}
+	return payload
+}
 
 func newSaveHTMLCmd() *cobra.Command {
 	var pageName string
@@ -13,8 +26,7 @@ func newSaveHTMLCmd() *cobra.Command {
 		Short: "Save page HTML",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			payload := map[string]interface{}{"path": pathArg}
-			return runWithPage(pageName, "save_html", payload)
+			return runWithPage(pageName, "save_html", buildSaveHTMLPayload(pathArg))
 		},
 	}
 

@@ -170,6 +170,10 @@ Run `dev-browser-go <command> --help` for command-specific options.
 
 Evaluate JavaScript in the page context:
 ```bash
+# Positional shorthand
+dev-browser-go js-eval "document.title"
+
+# Explicit flag
 dev-browser-go js-eval --expr "document.title"
 dev-browser-go js-eval --expr "Array.from(document.querySelectorAll('a')).map(a => a.href)"
 ```
@@ -280,6 +284,9 @@ dev-browser-go save-baseline --path button-baseline.png \
 
 **Common patterns:**
 ```bash
+# Positional shorthand (no flag needed for simple expressions)
+dev-browser-go js-eval "document.title"
+
 # Page state
 dev-browser-go js-eval --expr "document.readyState"
 dev-browser-go js-eval --expr "window.scrollY"

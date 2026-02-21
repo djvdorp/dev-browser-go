@@ -32,9 +32,13 @@ Run `dev-browser-go --help` for full CLI reference.
 ```bash
 dev-browser-go snapshot --output summary    # Default text output
 dev-browser-go snapshot --output json       # JSON payload
-dev-browser-go save-html --output html      # HTML to stdout
-dev-browser-go save-html --output path --out page.html
+dev-browser-go save-html                    # Save page HTML to default artifact path
+dev-browser-go save-html --path page.html   # Save page HTML to specified path
 ```
+
+Note: `--output` and `--out` are global output flags (control the format and destination of the
+command result). `--path` on `save-html` (and `asset-snapshot`, `save-baseline`) is the
+artifact file path written by the tool itself.
 
 ## Core Workflow
 
@@ -85,10 +89,12 @@ dev-browser-go screenshot --annotate-refs    # Overlay ref labels on screenshot
 dev-browser-go screenshot --selector ".panel" --padding-px 10  # Element crop + padding
 dev-browser-go screenshot --crop 0,0,800,600 # Crop region (max 2000x2000)
 dev-browser-go bounds ".panel" --nth 1      # Element bounds (CSS or ARIA)
-dev-browser-go save-html --path page.html    # Save page HTML
+dev-browser-go save-html                     # Save page HTML (default artifact path)
+dev-browser-go save-html --path page.html    # Save page HTML to specific path
 dev-browser-go style-capture --mode inline   # Inline computed styles
 dev-browser-go style-capture --mode bundle --css-path styles.css --selector ".panel"
-dev-browser-go js-eval --expr "document.title"  # Evaluate JavaScript
+dev-browser-go js-eval "document.title"      # Evaluate JavaScript (positional)
+dev-browser-go js-eval --expr "document.title"  # Evaluate JavaScript (flag)
 dev-browser-go js-eval --selector ".btn" --expr "this.textContent"
 dev-browser-go asset-snapshot --path offline.html  # Save with assets
 dev-browser-go save-baseline --path baseline.png   # Save visual baseline
@@ -114,6 +120,9 @@ dev-browser-go wait --timeout-ms 5000        # Custom timeout
 
 ### JavaScript Evaluation
 ```bash
+# Positional expression (shorthand)
+dev-browser-go js-eval "document.title"
+
 # Get page title
 dev-browser-go js-eval --expr "document.title"
 

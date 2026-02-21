@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -20,7 +21,12 @@ func newConsoleCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "console",
 		Short: "Read page console logs",
-		Args:  cobra.NoArgs,
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return errors.New("console reads logs; use js-eval to execute JavaScript")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if since < 0 {
 				return fmt.Errorf("--since must be >= 0")
