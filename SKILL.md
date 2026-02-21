@@ -32,9 +32,13 @@ Run `dev-browser-go --help` for full CLI reference.
 ```bash
 dev-browser-go snapshot --output summary    # Default text output
 dev-browser-go snapshot --output json       # JSON payload
-dev-browser-go save-html --output html      # HTML to stdout
-dev-browser-go save-html --output path --out page.html
+dev-browser-go save-html                    # Save page HTML to default artifact path
+dev-browser-go save-html --path page.html   # Save page HTML to specified path
 ```
+
+Note: `--output` and `--out` are global serialization flags (controls format/destination of the
+command result JSON). `--path` on `save-html` (and `asset-snapshot`, `save-baseline`) is the
+artifact file path written by the tool itself.
 
 ## Core Workflow
 
@@ -114,6 +118,9 @@ dev-browser-go wait --timeout-ms 5000        # Custom timeout
 
 ### JavaScript Evaluation
 ```bash
+# Positional expression (shorthand)
+dev-browser-go js-eval "document.title"
+
 # Get page title
 dev-browser-go js-eval --expr "document.title"
 

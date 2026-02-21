@@ -18,12 +18,20 @@ func newJSEvalCmd() *cobra.Command {
 	var timeout int
 
 	cmd := &cobra.Command{
-		Use:   "js-eval",
+		Use:   "js-eval [expression]",
 		Short: "Evaluate JavaScript in page context",
-		Args:  cobra.NoArgs,
-		PreRunE: func(_ *cobra.Command, _ []string) error {
+		Args:  cobra.MaximumNArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			exprFlagSet := cmd.Flags().Changed("expr")
+			hasPositional := len(args) > 0
+			if hasPositional && exprFlagSet {
+				return errors.New("provide expression as positional argument OR via --expr flag, not both")
+			}
+			if hasPositional {
+				expression = args[0]
+			}
 			if strings.TrimSpace(expression) == "" {
-				return errors.New("--expr is required")
+				return errors.New(`expression required; e.g.: js-eval "document.title" or js-eval --expr "document.title"`)
 			}
 			if format != "auto" && format != "json" && format != "string" && format != "number" && format != "boolean" {
 				return errors.New("--format must be auto, json, string, number, or boolean")

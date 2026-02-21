@@ -13,7 +13,10 @@ func newSaveHTMLCmd() *cobra.Command {
 		Short: "Save page HTML",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			payload := map[string]interface{}{"path": pathArg}
+			payload := map[string]interface{}{}
+			if pathArg != "" {
+				payload["path"] = pathArg
+			}
 			return runWithPage(pageName, "save_html", payload)
 		},
 	}
