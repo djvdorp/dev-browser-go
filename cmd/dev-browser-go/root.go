@@ -4,8 +4,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "0.2.0"
-
 var rootCmd = &cobra.Command{
 	Use:          "dev-browser-go",
 	Short:        "ref-based browser automation (CLI + daemon)",
@@ -23,7 +21,7 @@ func Execute() error {
 }
 
 func init() {
-	rootCmd.Version = version
+	rootCmd.Version = buildVersion()
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
 
 	bindGlobalFlags(rootCmd)

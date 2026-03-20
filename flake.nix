@@ -10,7 +10,11 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        version = "0.1.0";
+        baseVersion = "0.2.0";
+        version =
+          if self ? dirtyShortRev then "${baseVersion}+g${self.dirtyShortRev}.dirty"
+          else if self ? shortRev then "${baseVersion}+g${self.shortRev}"
+          else baseVersion;
 
         devBrowserGo = pkgs.buildGoModule {
           pname = "dev-browser-go";
@@ -18,7 +22,7 @@
           src = self;
           subPackages = [ "cmd/dev-browser-go" ];
           vendorHash = "sha256-pggjWBdRjfZ5Qs/i3bubhyRAvXFqYg2BAiQ3j7ov9tU=";
-          ldflags = [ "-s" "-w" ];
+          ldflags = [ "-s" "-w" "-X main.versionOverride=${version}" ];
           nativeBuildInputs = [ pkgs.makeWrapper ];
           postInstall = ''
             wrapProgram $out/bin/dev-browser-go \
