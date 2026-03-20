@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -25,6 +26,12 @@ func newSaveHTMLCmd() *cobra.Command {
 		Use:   "save-html",
 		Short: "Save page HTML",
 		Args:  cobra.NoArgs,
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			if globalOpts.output == "path" && flagChanged(cmd, "out") {
+				return errors.New("save-html: `--output path --out` writes the command result wrapper, not raw HTML; use `--path <file>` for the HTML artifact")
+			}
+			return nil
+		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return runWithPage(pageName, "save_html", buildSaveHTMLPayload(pathArg))
 		},

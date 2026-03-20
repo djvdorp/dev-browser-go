@@ -31,8 +31,8 @@ func TestVersionFromBuildInfoPrefersBaseVersionWhenRevisionPresent(t *testing.T)
 			{Key: "vcs.revision", Value: "a38dae31234567890abcdef1234567890abcdef"},
 		},
 	}
-	if got := versionFromBuildInfo(baseVersion, info); got != "0.2.0+ga38dae312345" {
-		t.Fatalf("versionFromBuildInfo() = %q, want %q", got, "0.2.0+ga38dae312345")
+	if got := versionFromBuildInfo(baseVersion, info); got != "0.2.1+ga38dae312345" {
+		t.Fatalf("versionFromBuildInfo() = %q, want %q", got, "0.2.1+ga38dae312345")
 	}
 }
 
@@ -42,8 +42,8 @@ func TestVersionFromBuildInfoAddsRevision(t *testing.T) {
 			{Key: "vcs.revision", Value: "a38dae31234567890abcdef1234567890abcdef"},
 		},
 	}
-	if got := versionFromBuildInfo(baseVersion, info); got != "0.2.0+ga38dae312345" {
-		t.Fatalf("versionFromBuildInfo() = %q, want %q", got, "0.2.0+ga38dae312345")
+	if got := versionFromBuildInfo(baseVersion, info); got != "0.2.1+ga38dae312345" {
+		t.Fatalf("versionFromBuildInfo() = %q, want %q", got, "0.2.1+ga38dae312345")
 	}
 }
 
@@ -54,7 +54,7 @@ func TestVersionFromBuildInfoAddsDirtyMarker(t *testing.T) {
 			{Key: "vcs.modified", Value: "true"},
 		},
 	}
-	if got := versionFromBuildInfo(baseVersion, info); got != "0.2.0+ga38dae312345.dirty" {
-		t.Fatalf("versionFromBuildInfo() = %q, want %q", got, "0.2.0+ga38dae312345.dirty")
+	if got := versionFromBuildInfo(baseVersion, info); got != "0.2.1+ga38dae312345.dirty" {
+		t.Fatalf("versionFromBuildInfo() = %q, want %q", got, "0.2.1+ga38dae312345.dirty")
 	}
 }

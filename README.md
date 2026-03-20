@@ -93,6 +93,9 @@ dev-browser-go html-validate --url http://localhost:5173 --output json
 --out <path>        Write output to file (with --output=path)
 ```
 
+Note: `--output` and `--out` control the command result. For commands like
+`save-html`, use `--path` for the artifact file itself.
+
 ### Environment Variables
 
 | Variable | Description |
@@ -524,7 +527,7 @@ Available commands:
 ## Versioning & Releases
 
 - Simple SemVer tags (`v0.y.z` for fast moves; bump to `v1.0.0` once stable).
-- `dev-browser-go --version` uses the SemVer base plus build metadata when source revision info is available: `0.2.0+g<hash>` and `0.2.0+g<hash>.dirty`.
+- `dev-browser-go --version` uses the SemVer base plus build metadata when source revision info is available: `0.2.1+g<hash>` and `0.2.1+g<hash>.dirty`.
 - GitHub Release on each tag with the single Go binary (`dev-browser-go`) and checksums.
 - Nix flake outputs follow the tag; no extra artifacts.
 

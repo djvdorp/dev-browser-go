@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const baseVersion = "0.2.0"
+const baseVersion = "0.2.1"
 
 // versionOverride is set via -ldflags for packaged builds that do not carry VCS metadata.
 var versionOverride string

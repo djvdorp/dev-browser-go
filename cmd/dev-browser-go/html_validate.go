@@ -21,11 +21,7 @@ func newHTMLValidateCmd() *cobra.Command {
 		Short: "Lite HTML validation (report-only)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			ws, tid, err := devbrowser.EnsurePage(globalOpts.profile, globalOpts.headless, pageName, globalOpts.window, globalOpts.device)
-			if err != nil {
-				return err
-			}
-			pw, browser, page, err := devbrowser.OpenPage(ws, tid)
+			pw, browser, page, err := openNamedPage(pageName)
 			if err != nil {
 				return err
 			}

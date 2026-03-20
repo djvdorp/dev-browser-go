@@ -74,6 +74,19 @@ func TestSaveHTMLWithPathSucceeds(t *testing.T) {
 	}
 }
 
+func TestSaveHTMLRejectsGlobalOutPathWrapper(t *testing.T) {
+	root := newTestRoot()
+	root.AddCommand(withNoopRunE(newSaveHTMLCmd()))
+	root.SetArgs([]string{"save-html", "--output", "path", "--out", "result.json"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error when save-html uses --output path --out")
+	}
+	if !strings.Contains(err.Error(), "--path") {
+		t.Fatalf("expected error to direct user to --path, got: %v", err)
+	}
+}
+
 // --- js-eval tests -----------------------------------------------------------
 
 func TestJSEvalPositionalExpr(t *testing.T) {

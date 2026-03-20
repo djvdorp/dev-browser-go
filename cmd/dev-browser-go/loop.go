@@ -68,11 +68,7 @@ func newLoopCmd() *cobra.Command {
 					return devbrowser.AssertResult{}, devbrowser.DiagnoseSummary{}, "", "", err
 				}
 
-				ws, tid, err := devbrowser.EnsurePage(globalOpts.profile, globalOpts.headless, pageName, globalOpts.window, globalOpts.device)
-				if err != nil {
-					return devbrowser.AssertResult{}, devbrowser.DiagnoseSummary{}, "", "", err
-				}
-				pw, browser, page, err := devbrowser.OpenPage(ws, tid)
+				pw, browser, page, err := openNamedPage(pageName)
 				if err != nil {
 					return devbrowser.AssertResult{}, devbrowser.DiagnoseSummary{}, "", "", err
 				}

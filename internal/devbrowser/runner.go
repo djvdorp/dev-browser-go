@@ -137,7 +137,7 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		}
 
 		report, err := Diagnose(page, DiagnoseOptions{
-			URL:            url,
+			URL:             url,
 			WaitState:       waitState,
 			TimeoutMs:       timeoutMs,
 			MinWaitMs:       minWaitMs,
@@ -444,6 +444,10 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		if err != nil {
 			return nil, err
 		}
+		timeoutMs, err := optionalInt(args, "timeout_ms", 15_000)
+		if err != nil {
+			return nil, err
+		}
 		pathArg, err := optionalString(args, "path", "")
 		if err != nil {
 			return nil, err
@@ -452,6 +456,9 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		if err != nil {
 			return nil, err
 		}
+		if err := waitForNonEmptyBodyHTML(page, timeoutMs); err != nil {
+			return nil, fmt.Errorf("save_html readiness check failed: %w (url=%q title=%q)", err, page.URL(), safeTitle(page))
+		}
 		html, err := page.Content()
 		if err != nil {
 			return nil, err
@@ -459,7 +466,12 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		if err := osWriteFile(path, []byte(html)); err != nil {
 			return nil, err
 		}
-		res := RunResult{"path": path}
+		res := RunResult{
+			"path":        path,
+			"url":         page.URL(),
+			"title":       safeTitle(page),
+			"html_length": len(html),
+		}
 		if includeHTML {
 			res["html"] = html
 		}
@@ -1442,6 +1454,53 @@ func safeTitle(page playwright.Page) string {
 		return title
 	}
 	return ""
+}
+
+func waitForNonEmptyBodyHTML(page playwright.Page, timeoutMs int) error {
+	if ready, err := pageReadyState(page); err == nil && domContentLoadedReached(ready) {
+		goto waitForBody
+	}
+	if err := page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
+		State:   playwright.LoadStateDomcontentloaded,
+		Timeout: playwright.Float(float64(timeoutMs)),
+	}); err != nil {
+		if ready, readyErr := pageReadyState(page); readyErr == nil && domContentLoadedReached(ready) {
+			goto waitForBody
+		}
+		return fmt.Errorf("wait for domcontentloaded: %w", err)
+	}
+waitForBody:
+	_, err := page.WaitForFunction(`() => {
+		const body = document.body;
+		if (!body) return false;
+		const html = String(body.innerHTML || "").replace(/<!--[\s\S]*?-->/g, "").trim();
+		return html.length > 0;
+	}`, nil, playwright.PageWaitForFunctionOptions{
+		Polling: 100,
+		Timeout: playwright.Float(float64(timeoutMs)),
+	})
+	if err != nil {
+		return fmt.Errorf("wait for non-empty body html: %w", err)
+	}
+	return nil
+}
+
+func pageReadyState(page playwright.Page) (string, error) {
+	value, err := page.Evaluate("() => document.readyState")
+	if err != nil {
+		return "", err
+	}
+	ready, _ := value.(string)
+	return ready, nil
+}
+
+func domContentLoadedReached(readyState string) bool {
+	switch strings.ToLower(strings.TrimSpace(readyState)) {
+	case "interactive", "complete":
+		return true
+	default:
+		return false
+	}
 }
 
 func isTimeout(err error) bool {

@@ -17,6 +17,8 @@ import (
 type PageEntry struct {
 	Name     string
 	TargetID string
+	URL      string
+	Title    string
 }
 
 type BrowserHost struct {
@@ -141,24 +143,39 @@ func (b *BrowserHost) GetOrCreatePage(name string) (PageEntry, error) {
 	}
 
 	if holder, ok := b.registry[name]; ok && holder.page != nil && !holder.page.IsClosed() {
+		identity := PageIdentity{}
+		identity, err := b.describeHolderLocked(holder)
+		if err == nil {
+			holder.targetID = identity.TargetID
+			b.registry[name] = holder
+		} else {
+			identity = PageIdentity{
+				TargetID: holder.targetID,
+				URL:      holder.page.URL(),
+				Title:    safeTitle(holder.page),
+			}
+			if strings.TrimSpace(identity.TargetID) == "" {
+				return PageEntry{}, fmt.Errorf("resolve target id for page %q: %w", name, err)
+			}
+		}
 		if !holder.consoleHooked {
 			b.attachConsoleLocked(name, holder.page)
 		}
-		return PageEntry{Name: name, TargetID: holder.targetID}, nil
+		return PageEntry{Name: name, TargetID: identity.TargetID, URL: identity.URL, Title: identity.Title}, nil
 	}
 
 	page, err := b.context.NewPage()
 	if err != nil {
 		return PageEntry{}, err
 	}
-	tid, err := resolveTargetID(b.context, page)
+	identity, err := describePageInContext(b.context, page)
 	if err != nil {
 		_ = page.Close()
 		return PageEntry{}, err
 	}
-	b.registry[name] = pageHolder{page: page, targetID: tid}
+	b.registry[name] = pageHolder{page: page, targetID: identity.TargetID}
 	b.attachConsoleLocked(name, page)
-	return PageEntry{Name: name, TargetID: tid}, nil
+	return PageEntry{Name: name, TargetID: identity.TargetID, URL: identity.URL, Title: identity.Title}, nil
 }
 
 func (b *BrowserHost) startLocked() error {
@@ -302,6 +319,16 @@ func (b *BrowserHost) ConsoleLogs(name string, since int64, limit int) ([]Consol
 	}
 	entries, lastID := b.logs.list(name, since, limit)
 	return entries, lastID, nil
+}
+
+func (b *BrowserHost) describeHolderLocked(holder pageHolder) (PageIdentity, error) {
+	if holder.page == nil {
+		return PageIdentity{}, errors.New("page is nil")
+	}
+	if holder.page.IsClosed() {
+		return PageIdentity{}, errors.New("page is closed")
+	}
+	return describePageInContext(b.context, holder.page)
 }
 
 func resolveTargetID(context playwright.BrowserContext, page playwright.Page) (string, error) {

@@ -24,6 +24,11 @@ type DaemonState struct {
 	Version    string `json:"version"`
 }
 
+type PageSessionInfo struct {
+	WSEndpoint string
+	PageIdentity
+}
+
 func ReadState(profile string) (*DaemonState, error) {
 	path := StateFile(profile)
 	data, err := os.ReadFile(path)
@@ -188,26 +193,46 @@ func StopDaemon(profile string) (bool, error) {
 }
 
 func EnsurePage(profile string, headless bool, page string, window *WindowSize, device string) (string, string, error) {
-	if err := StartDaemon(profile, headless, window, device); err != nil {
+	info, err := EnsurePageInfo(profile, headless, page, window, device)
+	if err != nil {
 		return "", "", err
+	}
+	return info.WSEndpoint, info.TargetID, nil
+}
+
+func EnsurePageInfo(profile string, headless bool, page string, window *WindowSize, device string) (PageSessionInfo, error) {
+	if err := StartDaemon(profile, headless, window, device); err != nil {
+		return PageSessionInfo{}, err
 	}
 	base := DaemonBaseURL(profile)
 	if base == "" {
-		return "", "", errors.New("daemon state missing after start")
+		return PageSessionInfo{}, errors.New("daemon state missing after start")
 	}
 	data, err := HTTPJSON(http.MethodPost, base+"/pages", map[string]any{"name": page}, 10*time.Second)
 	if err != nil {
-		return "", "", err
+		return PageSessionInfo{}, err
 	}
 	ws, _ := data["wsEndpoint"].(string)
 	tid, _ := data["targetId"].(string)
 	if strings.TrimSpace(ws) == "" {
-		return "", "", errors.New("daemon did not return wsEndpoint")
+		return PageSessionInfo{}, errors.New("daemon did not return wsEndpoint")
 	}
 	if strings.TrimSpace(tid) == "" {
-		return "", "", errors.New("daemon did not return targetId")
+		return PageSessionInfo{}, errors.New("daemon did not return targetId")
 	}
-	return ws, tid, nil
+	info := PageSessionInfo{
+		WSEndpoint: ws,
+		PageIdentity: PageIdentity{
+			TargetID: tid,
+		},
+	}
+	if url, _ := data["url"].(string); strings.TrimSpace(url) != "" {
+		info.URL = url
+	}
+	if title, _ := data["title"].(string); strings.TrimSpace(title) != "" {
+		info.Title = title
+	}
+	return info, nil
 }
 
 func WriteOutput(profile string, mode string, result any, outPath string) (string, error) {

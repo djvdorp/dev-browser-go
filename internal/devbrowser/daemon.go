@@ -165,7 +165,13 @@ func (d *Daemon) handlePages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		ws, _ := d.host.WSEndpoint()
-		d.writeJSON(w, http.StatusOK, map[string]any{"wsEndpoint": ws, "name": entry.Name, "targetId": entry.TargetID})
+		d.writeJSON(w, http.StatusOK, map[string]any{
+			"wsEndpoint": ws,
+			"name":       entry.Name,
+			"targetId":   entry.TargetID,
+			"url":        entry.URL,
+			"title":      entry.Title,
+		})
 	default:
 		d.writeJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "not found"})
 	}
