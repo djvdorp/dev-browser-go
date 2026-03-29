@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	_ "image/png"
@@ -107,6 +108,76 @@ func TestCLIWorkflowPersistsDaemonAndCapturesMobileScreenshot(t *testing.T) {
 	}
 }
 
+func TestCLIWorkflowSaveHTMLReconnectCapturesDelayedBody(t *testing.T) {
+	profile := "e2e-save-html"
+	env := newE2EEnv(t)
+	bin := buildCLIForE2E(t)
+	pageURL := startDelayedBodyServer(t, 800*time.Millisecond)
+
+	t.Cleanup(func() {
+		_, _ = runCLICommand(t, env, 15*time.Second, bin, "--profile", profile, "stop")
+	})
+
+	gotoRes := runCLIJSON(t, env, 60*time.Second, bin,
+		"--profile", profile,
+		"--output", "json",
+		"goto", pageURL,
+	)
+	if got := strings.TrimSpace(asString(gotoRes["title"])); got != "dev-browser-go delayed body" {
+		t.Fatalf("goto title = %q, want %q", got, "dev-browser-go delayed body")
+	}
+
+	saveRes := runCLIJSON(t, env, 30*time.Second, bin,
+		"--profile", profile,
+		"--output", "json",
+		"save-html", "--path", "delayed-body.html",
+	)
+	if got := asString(saveRes["title"]); got != "dev-browser-go delayed body" {
+		t.Fatalf("save-html title = %q, want %q", got, "dev-browser-go delayed body")
+	}
+	html := asString(saveRes["html"])
+	if !strings.Contains(html, "delayed body marker") {
+		t.Fatalf("save-html html missing delayed marker: %q", html)
+	}
+	path := strings.TrimSpace(asString(saveRes["path"]))
+	if path == "" {
+		t.Fatalf("save-html result missing path: %#v", saveRes)
+	}
+	saved, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read save-html artifact: %v", err)
+	}
+	if !strings.Contains(string(saved), "delayed body marker") {
+		t.Fatalf("saved html missing delayed marker: %q", string(saved))
+	}
+}
+
+func TestCLIWorkflowJSEvalPositionalExpression(t *testing.T) {
+	profile := "e2e-js-eval"
+	env := newE2EEnv(t)
+	bin := buildCLIForE2E(t)
+	pageURL := startE2ETestServer(t)
+
+	t.Cleanup(func() {
+		_, _ = runCLICommand(t, env, 15*time.Second, bin, "--profile", profile, "stop")
+	})
+
+	runCLIJSON(t, env, 60*time.Second, bin,
+		"--profile", profile,
+		"--output", "json",
+		"goto", pageURL,
+	)
+
+	evalRes := runCLIJSON(t, env, 15*time.Second, bin,
+		"--profile", profile,
+		"--output", "json",
+		"js-eval", "document.title",
+	)
+	if got := strings.TrimSpace(asString(evalRes["result"])); got != "dev-browser-go e2e" {
+		t.Fatalf("js-eval result = %q, want %q", got, "dev-browser-go e2e")
+	}
+}
+
 func newE2EEnv(t *testing.T) []string {
 	t.Helper()
 	root := t.TempDir()
@@ -207,6 +278,34 @@ func startE2ETestServer(t *testing.T) string {
   </main>
 </body>
 </html>`))
+	}))
+	t.Cleanup(server.Close)
+	return server.URL
+}
+
+func startDelayedBodyServer(t *testing.T, delay time.Duration) string {
+	t.Helper()
+	delayMS := int(delay / time.Millisecond)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = fmt.Fprintf(w, `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>dev-browser-go delayed body</title>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const main = document.createElement('main');
+        main.id = 'marker';
+        main.textContent = 'delayed body marker';
+        document.body.appendChild(main);
+      }, %d);
+    });
+  </script>
+</head>
+<body></body>
+</html>`, delayMS)
 	}))
 	t.Cleanup(server.Close)
 	return server.URL

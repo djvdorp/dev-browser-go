@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
+      - name: Install Playwright Chromium
+        run: go run github.com/playwright-community/playwright-go/cmd/playwright install --with-deps chromium
       - name: Go vet
         run: go vet ./...
       - name: Go test
