@@ -125,6 +125,17 @@ dev-browser-go devices
 
 Note: device profiles use Playwright names; device/viewport flags apply when the daemon starts. Stop the daemon to switch.
 
+Recommended profiles for this repo:
+
+- Default Samsung/mobile example: `Galaxy S9+`
+  Use this as the main mobile example in docs and Samsung-focused testing. It is the most recent Galaxy phone profile currently exposed by `dev-browser-go devices`, even though it is older than ideal.
+- Default modern Android alternative: `Pixel 7`
+  Use this when you want the newest Android phone profile available in the current bundled Playwright device list.
+- Mainstream iPhone baseline: `iPhone 15`
+  Use this when you want a current, non-Pro iOS baseline that better represents the standard iPhone buyer than a Max/Pro-only choice.
+- Large-screen premium iPhone: `iPhone 15 Pro Max`
+  Use this when you want high-end iOS coverage, larger-screen layout pressure, or a flagship Apple baseline alongside the standard `iPhone 15`.
+
 ## Commands
 
 | Command | Description |

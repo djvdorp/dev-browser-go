@@ -269,6 +269,12 @@ dev-browser-go --device "Galaxy S9+" goto https://example.com
 Do not combine `--device` with `--window-size` or `--window-scale`.
 Note: device/viewport flags apply when the daemon starts. Stop the daemon to switch.
 
+Recommended device choices:
+- `Galaxy S9+` as the default Samsung/mobile example; it is the newest Galaxy profile currently available here
+- `Pixel 7` as the default modern Android alternative
+- `iPhone 15` for mainstream current iPhone coverage
+- `iPhone 15 Pro Max` for large-screen premium iPhone coverage
+
 ### Element Screenshots
 For component-level captures, use CSS selectors from your codebase:
 ```bash
