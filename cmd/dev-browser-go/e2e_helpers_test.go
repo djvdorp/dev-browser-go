@@ -382,6 +382,21 @@ func previewContainsText(v any, needle string) bool {
 	return false
 }
 
+func stringSliceContains(v any, needle string) bool {
+	needle = strings.ToLower(strings.TrimSpace(needle))
+	items, ok := v.([]any)
+	if !ok {
+		return false
+	}
+	for _, item := range items {
+		value := strings.ToLower(strings.TrimSpace(asString(item)))
+		if value == needle {
+			return true
+		}
+	}
+	return false
+}
+
 func minimalPNG() []byte {
 	return []byte{
 		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
