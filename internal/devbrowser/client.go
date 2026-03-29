@@ -144,6 +144,7 @@ func StartDaemon(profile string, headless bool, window *WindowSize, device strin
 	}
 
 	cmd := exec.Command(exe, args...)
+	configureDaemonProcess(cmd)
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return err
