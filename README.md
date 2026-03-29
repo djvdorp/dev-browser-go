@@ -114,7 +114,7 @@ dev-browser-go --window-size 412x915 goto https://example.com
 
 Device profile (UA + DPR + touch + viewport/screen):
 ```bash
-dev-browser-go --device "Galaxy S20 Ultra" goto https://example.com
+dev-browser-go --device "Galaxy S9+" goto https://example.com
 ```
 Do not combine `--device` with `--window-size` or `--window-scale`.
 
@@ -527,7 +527,7 @@ Available commands:
 ## Versioning & Releases
 
 - Simple SemVer tags (`v0.y.z` for fast moves; bump to `v1.0.0` once stable).
-- `dev-browser-go --version` uses the SemVer base plus build metadata when source revision info is available: `0.2.1+g<hash>` and `0.2.1+g<hash>.dirty`.
+- `dev-browser-go --version` uses the SemVer base plus build metadata when source revision info is available: `0.2.2+g<hash>` and `0.2.2+g<hash>.dirty`.
 - GitHub Release on each tag with the single Go binary (`dev-browser-go`) and checksums.
 - Nix flake outputs follow the tag; no extra artifacts.
 

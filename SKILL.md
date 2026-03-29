@@ -264,7 +264,7 @@ DEV_BROWSER_WINDOW_SIZE=412x915 dev-browser-go goto https://example.com
 Use Playwright device profiles for UA + DPR + touch + viewport/screen:
 ```bash
 dev-browser-go devices
-dev-browser-go --device "Galaxy S20 Ultra" goto https://example.com
+dev-browser-go --device "Galaxy S9+" goto https://example.com
 ```
 Do not combine `--device` with `--window-size` or `--window-scale`.
 Note: device/viewport flags apply when the daemon starts. Stop the daemon to switch.
