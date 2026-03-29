@@ -1,11 +1,14 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/spf13/cobra"
 )
 
 func newNetworkMonitorCmd() *cobra.Command {
 	var pageName string
+	var targetURL string
 	var waitState string
 	var timeoutMs int
 	var minWaitMs int
@@ -34,19 +37,29 @@ func newNetworkMonitorCmd() *cobra.Command {
 				"include_bodies":  includeBodies,
 				"include_headers": includeHeaders,
 				"max_body_bytes":  maxBodyBytes,
-				"url_contains":    urlContains,
-				"method":          method,
-				"type":            typ,
 				"status":          status,
 				"status_min":      statusMin,
 				"status_max":      statusMax,
 				"only_failed":     onlyFailed,
+			}
+			if strings.TrimSpace(targetURL) != "" {
+				payload["url"] = targetURL
+			}
+			if strings.TrimSpace(urlContains) != "" {
+				payload["url_contains"] = urlContains
+			}
+			if strings.TrimSpace(method) != "" {
+				payload["method"] = method
+			}
+			if strings.TrimSpace(typ) != "" {
+				payload["type"] = typ
 			}
 			return runWithPage(pageName, "network_monitor", payload)
 		},
 	}
 
 	cmd.Flags().StringVar(&pageName, "page", "main", "Page name")
+	cmd.Flags().StringVar(&targetURL, "url", "", "Optional URL to navigate to before capture")
 	cmd.Flags().StringVar(&waitState, "wait", "networkidle", "Wait state (load|domcontentloaded|networkidle|commit)")
 	cmd.Flags().IntVar(&timeoutMs, "timeout-ms", 45_000, "Timeout for waiting")
 	cmd.Flags().IntVar(&minWaitMs, "min-wait-ms", 0, "Minimum wait before evaluation")

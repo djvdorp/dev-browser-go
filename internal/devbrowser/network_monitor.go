@@ -12,6 +12,8 @@ import (
 )
 
 type NetworkMonitorOptions struct {
+	NavigateURL string
+
 	WaitStrategy string
 	WaitState    string
 	TimeoutMs    int
@@ -197,6 +199,16 @@ func CollectNetwork(page playwright.Page, opts NetworkMonitorOptions) (NetworkSu
 			e.Error = "request failed"
 		}
 	})
+
+	if strings.TrimSpace(opts.NavigateURL) != "" {
+		_, err := page.Goto(opts.NavigateURL, playwright.PageGotoOptions{
+			WaitUntil: playwright.WaitUntilStateCommit,
+			Timeout:   playwright.Float(float64(opts.TimeoutMs)),
+		})
+		if err != nil {
+			return NetworkSummary{}, err
+		}
+	}
 
 	// Wait until stable.
 	_, err := waitWithStrategy(page, opts.WaitStrategy, opts.WaitState, opts.TimeoutMs, opts.MinWaitMs)

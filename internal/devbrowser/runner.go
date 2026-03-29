@@ -625,6 +625,10 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		return RunResult{"injected": injected}, nil
 
 	case "network_monitor":
+		targetURL, err := optionalStringAllowEmpty(args, "url", "")
+		if err != nil {
+			return nil, err
+		}
 		waitState, err := optionalString(args, "wait_state", "networkidle")
 		if err != nil {
 			return nil, err
@@ -683,6 +687,7 @@ func RunCall(page playwright.Page, name string, args map[string]interface{}, art
 		}
 
 		summary, _ := CollectNetwork(page, NetworkMonitorOptions{
+			NavigateURL:    targetURL,
 			WaitStrategy:   "playwright",
 			WaitState:      waitState,
 			TimeoutMs:      timeoutMs,
