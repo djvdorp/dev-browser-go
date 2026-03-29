@@ -236,6 +236,17 @@ func asInt(v any) int {
 	}
 }
 
+func asFloat64(v any) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	default:
+		return 0
+	}
+}
+
 func toStringSet(v any) map[string]bool {
 	out := map[string]bool{}
 	switch items := v.(type) {
@@ -306,6 +317,34 @@ func findingsContainRule(v any, ruleID string) bool {
 	return false
 }
 
+func snapshotItems(v any) []map[string]any {
+	items, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func findSnapshotRef(items []map[string]any, role, name string) string {
+	role = strings.ToLower(strings.TrimSpace(role))
+	name = strings.ToLower(strings.TrimSpace(name))
+	for _, item := range items {
+		itemRole := strings.ToLower(strings.TrimSpace(asString(item["role"])))
+		itemName := strings.ToLower(strings.TrimSpace(asString(item["name"])))
+		if itemRole == role && strings.Contains(itemName, name) {
+			return strings.TrimSpace(asString(item["ref"]))
+		}
+	}
+	return ""
+}
+
 func networkEntriesContainURL(v any, needle string) bool {
 	entries, ok := v.([]any)
 	if !ok {
@@ -318,6 +357,25 @@ func networkEntriesContainURL(v any, needle string) bool {
 		}
 		url, _ := m["url"].(string)
 		if strings.Contains(url, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func previewContainsText(v any, needle string) bool {
+	needle = strings.ToLower(strings.TrimSpace(needle))
+	entries, ok := v.([]any)
+	if !ok {
+		return false
+	}
+	for _, entry := range entries {
+		m, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		text := strings.ToLower(strings.TrimSpace(asString(m["text"])))
+		if strings.Contains(text, needle) {
 			return true
 		}
 	}

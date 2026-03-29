@@ -181,3 +181,54 @@ func startAssetSnapshotFixtureServer(t *testing.T) string {
 	t.Cleanup(server.Close)
 	return server.URL
 }
+
+func startInteractiveRefsFixtureServer(t *testing.T) string {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>interactive refs fixture</title>
+  <style>
+    body { font-family: sans-serif; margin: 24px; }
+    form { display: grid; gap: 12px; max-width: 360px; }
+    input, button { font-size: 16px; padding: 10px 12px; }
+    #result { margin-top: 16px; min-height: 24px; }
+  </style>
+</head>
+<body>
+  <h1>Selector and ref fixture</h1>
+  <form id="search-form">
+    <label for="search">Search query</label>
+    <input id="search" type="text" aria-label="Search query" placeholder="Search query">
+    <button id="run-search" type="button">Run search</button>
+  </form>
+  <p id="result">idle</p>
+  <script>
+    (() => {
+      const input = document.getElementById('search');
+      const button = document.getElementById('run-search');
+      const result = document.getElementById('result');
+      const update = (mode) => {
+        const text = input.value.trim() || 'empty';
+        setTimeout(() => {
+          result.textContent = text + ' via ' + mode;
+        }, 120);
+      };
+      button.addEventListener('click', () => update('click'));
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          update('enter');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>`))
+	}))
+	t.Cleanup(server.Close)
+	return server.URL
+}
