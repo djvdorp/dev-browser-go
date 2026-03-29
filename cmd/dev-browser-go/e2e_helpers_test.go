@@ -96,6 +96,16 @@ func runCLIJSON(t *testing.T, env []string, timeout time.Duration, bin string, a
 	return payload
 }
 
+func runCLIJSONWithInput(t *testing.T, env []string, timeout time.Duration, bin string, input string, args ...string) map[string]any {
+	t.Helper()
+	stdout, stderr := runCLICommandWithInput(t, env, timeout, bin, input, args...)
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(stdout)), &payload); err != nil {
+		t.Fatalf("decode json output: %v\nstdout=%q\nstderr=%q", err, stdout, stderr)
+	}
+	return payload
+}
+
 func runCLIJSONWithExit(t *testing.T, env []string, timeout time.Duration, bin string, args ...string) (map[string]any, int) {
 	t.Helper()
 	stdout, stderr, code := runCLICommandAllowExit(t, env, timeout, bin, args...)
@@ -115,7 +125,20 @@ func runCLICommand(t *testing.T, env []string, timeout time.Duration, bin string
 	return stdout, stderr
 }
 
+func runCLICommandWithInput(t *testing.T, env []string, timeout time.Duration, bin string, input string, args ...string) (string, string) {
+	t.Helper()
+	stdout, stderr, code := runCLICommandAllowExitWithInput(t, env, timeout, bin, input, args...)
+	if code != 0 {
+		t.Fatalf("command failed: %s %s\nstdout=%s\nstderr=%s\nexit=%d", bin, strings.Join(args, " "), stdout, stderr, code)
+	}
+	return stdout, stderr
+}
+
 func runCLICommandAllowExit(t *testing.T, env []string, timeout time.Duration, bin string, args ...string) (string, string, int) {
+	return runCLICommandAllowExitWithInput(t, env, timeout, bin, "", args...)
+}
+
+func runCLICommandAllowExitWithInput(t *testing.T, env []string, timeout time.Duration, bin string, input string, args ...string) (string, string, int) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -123,6 +146,9 @@ func runCLICommandAllowExit(t *testing.T, env []string, timeout time.Duration, b
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Env = env
 	cmd.Dir = repoRoot(t)
+	if input != "" {
+		cmd.Stdin = strings.NewReader(input)
+	}
 	stdout, err := cmd.Output()
 	stderr := ""
 	if exitErr := (*exec.ExitError)(nil); err != nil {
