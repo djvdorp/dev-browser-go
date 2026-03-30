@@ -118,6 +118,32 @@ dev-browser-go wait --state networkidle      # Wait for network idle
 dev-browser-go wait --timeout-ms 5000        # Custom timeout
 ```
 
+### Ref Inspection & Analysis
+```bash
+# Inspect a snapshot ref
+dev-browser-go inspect-ref --ref e3
+dev-browser-go inspect-ref --ref e3 --style-prop display --style-prop color
+
+# Test selectors and XPath
+dev-browser-go test-selector --selector ".submit-button"
+dev-browser-go test-xpath --xpath "//button[@type='submit']"
+
+# Monitor network traffic
+dev-browser-go network-monitor --url https://example.com --wait load
+dev-browser-go network-monitor --url https://example.com --url-contains /api/ --failed
+
+# Read console logs
+dev-browser-go console --level all
+dev-browser-go console --level error
+
+# Performance metrics
+dev-browser-go perf-metrics --sample-ms 1200 --top-n 20
+
+# Computed style helpers
+dev-browser-go color-info --ref e3
+dev-browser-go font-info --ref e3
+```
+
 ### JavaScript Evaluation
 ```bash
 # Positional expression (shorthand)
@@ -197,12 +223,19 @@ dev-browser-go save-baseline --path button-baseline.png \
 
 # Later, check for regressions
 dev-browser-go visual-diff --baseline button-baseline.png --pixel-threshold 2
+
+# DOM baseline + structural diff
+dev-browser-go save-dom-baseline --path baseline.dom.json
+dev-browser-go dom-diff --baseline baseline.dom.json --output json
 ```
 
 ### Batch Actions
 ```bash
 # Execute multiple actions in one call
-echo '[{"tool":"click_ref","args":{"ref":"e1"}},{"tool":"press","args":{"key":"Enter"}}]' | dev-browser-go actions
+echo '[{"name":"click_ref","arguments":{"ref":"e1"}},{"name":"press","arguments":{"key":"Enter"}}]' | dev-browser-go actions
+
+# Or pass the array directly
+dev-browser-go actions --calls '[{"name":"goto","arguments":{"url":"https://example.com"}},{"name":"snapshot","arguments":{"format":"list"}}]'
 ```
 
 ### Daemon Management
@@ -210,6 +243,22 @@ echo '[{"tool":"click_ref","args":{"ref":"e1"}},{"tool":"press","args":{"key":"E
 dev-browser-go status                        # Check daemon status
 dev-browser-go stop                          # Stop daemon (closes browser)
 dev-browser-go start --headless              # Start in headless mode
+```
+
+### Diagnostics & CI Gates
+```bash
+# Structured diagnostic report
+dev-browser-go diagnose --url http://localhost:5173 --output json
+
+# Deterministic pass/fail checks
+dev-browser-go assert --url http://localhost:5173 --rules @./assert.json --output json
+
+# Lite HTML validation
+dev-browser-go html-validate --url http://localhost:5173 --output json
+
+# Run diagnose+assert once or in watch mode
+dev-browser-go loop --url http://localhost:5173 --rules @./assert.json
+dev-browser-go loop --url http://localhost:5173 --rules @./assert.json --watch --watch-paths src,public
 ```
 
 ## Interpreting Snapshots

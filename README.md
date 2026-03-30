@@ -177,6 +177,7 @@ Recommended profiles for this repo:
 | `diagnose` | One-call “what’s broken?” report (structured JSON, artifacts) |
 | `assert` | Deterministic gating for agents/CI (exit 0 pass, 2 fail) |
 | `html-validate` | Lite HTML validator (duplicate IDs, missing alt, basic control naming) |
+| `loop` | Run diagnose+assert once or in watch mode |
 
 Run `dev-browser-go <command> --help` for command-specific options.
 
@@ -216,6 +217,25 @@ dev-browser-go inject --style "body { background-color: yellow; }"
 # Inject from file
 dev-browser-go inject --file ./fix.js
 dev-browser-go inject --file ./patch.css
+```
+
+### Batch Actions
+
+Run multiple tool calls in one request:
+```bash
+# Read calls from stdin
+echo '[
+  {"name":"click_ref","arguments":{"ref":"e1"}},
+  {"name":"press","arguments":{"key":"Enter"}}
+]' | dev-browser-go actions
+```
+
+Or pass them directly:
+```bash
+dev-browser-go actions --calls '[
+  {"name":"goto","arguments":{"url":"https://example.com"}},
+  {"name":"snapshot","arguments":{"format":"list"}}
+]'
 ```
 
 ### Asset Snapshot
@@ -258,6 +278,16 @@ dev-browser-go save-dom-baseline --path baseline.dom.json
 Compare current DOM structure:
 ```bash
 dev-browser-go dom-diff --baseline baseline.dom.json --output json
+```
+
+### Diagnose / Assert / Loop
+
+Structured checks for agent loops and CI:
+```bash
+dev-browser-go diagnose --url http://localhost:5173 --output json
+dev-browser-go assert --url http://localhost:5173 --rules @./assert.json --output json
+dev-browser-go html-validate --url http://localhost:5173 --output json
+dev-browser-go loop --url http://localhost:5173 --rules @./assert.json --watch --watch-paths src,public
 ```
 
 ### Network Monitor
@@ -356,22 +386,19 @@ dev-browser-go inject --script "window.MOCK_API = true"
 
 ### Asset Snapshot
 
-`asset-snapshot` creates a self-contained HTML file for offline sharing or review:
+`asset-snapshot` creates an HTML snapshot for offline review workflows:
 
 - **Asset discovery**: Finds CSS, JS, fonts, images up to configurable depth
-- **Inlining**: Small assets (<10KB by default) are embedded directly
+- **Link preservation**: Keeps discovered asset references in the saved HTML
 - **Script stripping**: Optional removal of `<script>` tags for security
-- **Offline capable**: Works without network after saving
+- **Metadata output**: Reports discovered asset counts in the command result
 
 **Use cases:**
 ```bash
 # Share page with design team
 dev-browser-go asset-snapshot --path design-review.html
 
-# Archive component for later review
-dev-browser-go asset-snapshot --path component-backup.html --selector ".my-component"
-
-# Create test fixture
+# Create review fixture with stripped scripts
 dev-browser-go asset-snapshot --path test-fixture.html --strip-scripts --asset-types css
 ```
 
@@ -380,7 +407,7 @@ dev-browser-go asset-snapshot --path test-fixture.html --strip-scripts --asset-t
 # Only CSS (no JS/images)
 dev-browser-go asset-snapshot --path minimal.html --asset-types css
 
-# Inline threshold (reserved for future inlining)
+# Inline threshold (reserved for future inlining behavior)
 dev-browser-go asset-snapshot --path big.html --inline-threshold 51200
 
 # Deeper scan
