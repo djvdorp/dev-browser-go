@@ -2,7 +2,7 @@ BIN      := dev-browser-go
 CMD      := ./cmd/dev-browser-go
 INSTALL  := $(HOME)/bin/$(BIN)
 
-.PHONY: build install test vet smoke review tidy clean
+.PHONY: build install test vet docs-audit ci smoke review tidy clean
 
 ## build: compile binary to repo root
 build:
@@ -20,6 +20,13 @@ test:
 ## vet: run go vet
 vet:
 	go vet ./...
+
+## docs-audit: verify README/SKILL match the current CLI surface
+docs-audit:
+	./scripts/check_docs_surface.sh
+
+## ci: local CI sequence
+ci: vet docs-audit test build
 
 ## smoke: headless goto + snapshot (requires built binary)
 smoke: build

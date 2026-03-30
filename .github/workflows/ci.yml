@@ -17,6 +17,8 @@ jobs:
         run: go run github.com/playwright-community/playwright-go/cmd/playwright install --with-deps chromium
       - name: Go vet
         run: go vet ./...
+      - name: Docs audit
+        run: make docs-audit
       - name: Go test
         run: go test ./...
       - name: Build binary
