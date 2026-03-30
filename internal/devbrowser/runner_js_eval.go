@@ -163,7 +163,6 @@ func extractAssets(page playwright.Page, types []string, maxDepth int) ([]map[st
 		"$types":    types,
 		"$maxDepth": maxDepth,
 	})
-
 	if err != nil {
 		return nil, err
 	}

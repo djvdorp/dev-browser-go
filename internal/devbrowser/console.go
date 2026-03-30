@@ -9,8 +9,10 @@ import (
 	"github.com/playwright-community/playwright-go"
 )
 
-const defaultConsoleLogMax = 200
-const defaultConsoleLevels = "info,warning,error"
+const (
+	defaultConsoleLogMax = 200
+	defaultConsoleLevels = "info,warning,error"
+)
 
 type ConsoleEntry struct {
 	ID     int64  `json:"id"`

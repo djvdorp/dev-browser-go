@@ -138,17 +138,17 @@ func TestResolveDeviceDescriptorErrorMessage(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-existent device")
 	}
-	
+
 	errMsg := err.Error()
 	if !strings.Contains(errMsg, "Available devices include:") {
 		t.Errorf("error message should list available devices, got: %s", errMsg)
 	}
-	
+
 	// Verify error message contains specific command guidance
 	if !strings.Contains(errMsg, "run 'devices' command") {
 		t.Errorf("error message should mention 'run 'devices' command', got: %s", errMsg)
 	}
-	
+
 	// Verify error message contains at least one actual device name
 	hasDeviceName := false
 	for devName := range pw.Devices {

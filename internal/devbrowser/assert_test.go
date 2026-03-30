@@ -143,4 +143,3 @@ func TestEvaluateAssert_TextMatchWithNoOverlayOrError(t *testing.T) {
 		t.Fatalf("expected 2 failed checks, got %d", len(res.FailedChecks))
 	}
 }
-

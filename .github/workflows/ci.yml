@@ -15,6 +15,10 @@ jobs:
           go-version-file: 'go.mod'
       - name: Install Playwright Chromium
         run: go run github.com/playwright-community/playwright-go/cmd/playwright install --with-deps chromium
+      - name: gofmt check
+        run: make fmt-check
+      - name: gofumpt check
+        run: make fumpt-check
       - name: Go vet
         run: go vet ./...
       - name: Docs audit
