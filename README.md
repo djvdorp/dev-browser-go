@@ -123,7 +123,7 @@ List available profiles:
 dev-browser-go devices
 ```
 
-Note: device profiles use Playwright names; device/viewport flags apply when the daemon starts. Stop the daemon to switch.
+When a running profile is reused with different `--device`, `--window-size`, `--window-scale`, or headless/headed settings, `dev-browser-go` now recreates the browser context for that profile and restores named page URLs so the requested settings actually take effect.
 
 Recommended profiles for this repo:
 
@@ -565,7 +565,7 @@ Available commands:
 ## Versioning & Releases
 
 - Simple SemVer tags (`v0.y.z` for fast moves; bump to `v1.0.0` once stable).
-- `dev-browser-go --version` uses the SemVer base plus build metadata when source revision info is available: `0.2.2+g<hash>` and `0.2.2+g<hash>.dirty`.
+- `dev-browser-go --version` uses the SemVer base plus build metadata when source revision info is available: `0.2.3+g<hash>` and `0.2.3+g<hash>.dirty`.
 - GitHub Release on each tag with the single Go binary (`dev-browser-go`) and checksums.
 - Nix flake outputs follow the tag; no extra artifacts.
 

@@ -160,6 +160,77 @@ func TestCLIWorkflowJSEvalPositionalExpression(t *testing.T) {
 	}
 }
 
+func TestCLIWorkflowReconfiguresProfileWhenContextFlagsChange(t *testing.T) {
+	profile := "e2e-reconfigure-profile"
+	env := newE2EEnv(t)
+	bin := buildCLIForE2E(t)
+	pageURL := startE2ETestServer(t)
+
+	t.Cleanup(func() {
+		_, _ = runCLICommand(t, env, 15*time.Second, bin, "--profile", profile, "stop")
+	})
+
+	runCLIJSON(t, env, 60*time.Second, bin,
+		"--profile", profile,
+		"--window-size", "1280x800",
+		"--output", "json",
+		"goto", pageURL,
+	)
+
+	desktopEval := runCLIJSON(t, env, 15*time.Second, bin,
+		"--profile", profile,
+		"--output", "json",
+		"js-eval", "({innerWidth: window.innerWidth, userAgent: navigator.userAgent, href: location.href})",
+	)
+	desktop, ok := desktopEval["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("desktop js-eval result = %#v, want object", desktopEval["result"])
+	}
+	if got := asInt(desktop["innerWidth"]); got != 1280 {
+		t.Fatalf("desktop innerWidth = %d, want 1280", got)
+	}
+	if got := asString(desktop["href"]); !strings.Contains(got, pageURL) {
+		t.Fatalf("desktop href = %q, want %q", got, pageURL)
+	}
+
+	runCLIJSON(t, env, 60*time.Second, bin,
+		"--profile", profile,
+		"--device", "iPhone 13",
+		"--output", "json",
+		"goto", pageURL,
+	)
+
+	statusOut, _ := runCLICommand(t, env, 15*time.Second, bin,
+		"--profile", profile,
+		"status",
+	)
+	if !strings.Contains(statusOut, "device=iPhone 13") {
+		t.Fatalf("status output = %q, want mobile device", statusOut)
+	}
+	if !strings.Contains(statusOut, "viewport=390x") {
+		t.Fatalf("status output = %q, want iPhone viewport", statusOut)
+	}
+
+	mobileEval := runCLIJSON(t, env, 15*time.Second, bin,
+		"--profile", profile,
+		"--output", "json",
+		"js-eval", "({innerWidth: window.innerWidth, userAgent: navigator.userAgent, href: location.href})",
+	)
+	mobile, ok := mobileEval["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("mobile js-eval result = %#v, want object", mobileEval["result"])
+	}
+	if got := asInt(mobile["innerWidth"]); got != 390 {
+		t.Fatalf("mobile innerWidth = %d, want 390", got)
+	}
+	if got := asString(mobile["userAgent"]); !strings.Contains(strings.ToLower(got), "iphone") {
+		t.Fatalf("mobile userAgent = %q, want iphone", got)
+	}
+	if got := asString(mobile["href"]); !strings.Contains(got, pageURL) {
+		t.Fatalf("mobile href = %q, want %q", got, pageURL)
+	}
+}
+
 func TestCLILifecycleNamedPagesAndClosePage(t *testing.T) {
 	profile := "e2e-lifecycle"
 	env := newE2EEnv(t)

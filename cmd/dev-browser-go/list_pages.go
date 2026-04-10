@@ -13,10 +13,14 @@ func newListPagesCmd() *cobra.Command {
 		Use:   "list-pages",
 		Short: "List open pages",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if err := devbrowser.StartDaemon(globalOpts.profile, globalOpts.headless, globalOpts.window, globalOpts.device); err != nil {
+			result, err := ensureDaemonForCommand()
+			if err != nil {
 				return err
 			}
-			base := devbrowser.DaemonBaseURL(globalOpts.profile)
+			base := result.BaseURL
+			if base == "" {
+				base = devbrowser.DaemonBaseURL(globalOpts.profile)
+			}
 			if base == "" {
 				return fmt.Errorf("daemon state missing after start")
 			}

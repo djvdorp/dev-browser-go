@@ -14,12 +14,15 @@ type globalOptions struct {
 	profile     string
 	headless    bool
 	headed      bool
+	headlessSet bool
 	output      string
 	outPath     string
 	windowSize  string
 	windowScale float64
 	window      *devbrowser.WindowSize
 	device      string
+	windowSet   bool
+	deviceSet   bool
 }
 
 var globalOpts = &globalOptions{}
@@ -54,6 +57,7 @@ func applyGlobalOptions(cmd *cobra.Command) error {
 func resolveHeadless(cmd *cobra.Command) error {
 	headlessChanged := flagChanged(cmd, "headless")
 	headedChanged := flagChanged(cmd, "headed")
+	globalOpts.headlessSet = headlessChanged || headedChanged || strings.TrimSpace(os.Getenv("HEADLESS")) != ""
 	if headedChanged && headlessChanged {
 		return errors.New("use either --headless or --headed")
 	}
@@ -70,6 +74,7 @@ func resolveHeadless(cmd *cobra.Command) error {
 func resolveWindow(cmd *cobra.Command) error {
 	windowScaleChanged := flagChanged(cmd, "window-scale")
 	windowSizeChanged := flagChanged(cmd, "window-size")
+	globalOpts.windowSet = windowScaleChanged || windowSizeChanged || strings.TrimSpace(os.Getenv("DEV_BROWSER_WINDOW_SIZE")) != ""
 	if strings.TrimSpace(globalOpts.device) != "" {
 		if windowScaleChanged || windowSizeChanged {
 			return errors.New("use either --device or --window-size/--window-scale")
@@ -94,6 +99,7 @@ func resolveWindow(cmd *cobra.Command) error {
 
 func resolveDevice(cmd *cobra.Command) error {
 	globalOpts.device = strings.TrimSpace(globalOpts.device)
+	globalOpts.deviceSet = flagChanged(cmd, "device")
 	if flagChanged(cmd, "device") && globalOpts.device == "" {
 		return errors.New("--device requires a non-empty value")
 	}

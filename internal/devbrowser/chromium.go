@@ -9,8 +9,8 @@ import (
 )
 
 type WindowSize struct {
-	Width  int
-	Height int
+	Width  int `json:"width"`
+	Height int `json:"height"`
 }
 
 var (

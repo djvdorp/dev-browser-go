@@ -9,25 +9,30 @@ import (
 )
 
 func resolveDeviceDescriptor(pw *playwright.Playwright, name string) (*playwright.DeviceDescriptor, error) {
+	_, desc, err := resolveDeviceProfile(pw, name)
+	return desc, err
+}
+
+func resolveDeviceProfile(pw *playwright.Playwright, name string) (string, *playwright.DeviceDescriptor, error) {
 	deviceName := strings.TrimSpace(name)
 	if deviceName == "" {
-		return nil, nil
+		return "", nil, nil
 	}
 	if pw == nil {
-		return nil, fmt.Errorf("playwright not initialized for device lookup")
+		return "", nil, fmt.Errorf("playwright not initialized for device lookup")
 	}
 
 	// Try exact match first
 	desc, ok := pw.Devices[deviceName]
 	if ok && desc != nil {
-		return desc, nil
+		return deviceName, desc, nil
 	}
 
 	// Try case-insensitive match
 	lowerName := strings.ToLower(deviceName)
 	for devName, devDesc := range pw.Devices {
 		if strings.ToLower(devName) == lowerName && devDesc != nil {
-			return devDesc, nil
+			return devName, devDesc, nil
 		}
 	}
 
@@ -39,7 +44,7 @@ func resolveDeviceDescriptor(pw *playwright.Playwright, name string) (*playwrigh
 	sort.Strings(availableDevices)
 
 	if len(availableDevices) == 0 {
-		return nil, fmt.Errorf("unknown device %q (no devices available)", deviceName)
+		return "", nil, fmt.Errorf("unknown device %q (no devices available)", deviceName)
 	}
 
 	// Show first few devices as examples
@@ -49,7 +54,7 @@ func resolveDeviceDescriptor(pw *playwright.Playwright, name string) (*playwrigh
 		examples = examples[:maxExamples]
 	}
 
-	return nil, fmt.Errorf("unknown device %q. Available devices include: %s (run 'devices' command to see all %d devices)",
+	return "", nil, fmt.Errorf("unknown device %q. Available devices include: %s (run 'devices' command to see all %d devices)",
 		deviceName, strings.Join(examples, ", "), len(availableDevices))
 }
 

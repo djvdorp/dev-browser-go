@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -32,7 +33,7 @@ func runWithPage(pageName, tool string, args map[string]interface{}) error {
 }
 
 func openNamedPage(pageName string) (*playwright.Playwright, playwright.Browser, playwright.Page, error) {
-	sessionInfo, err := devbrowser.EnsurePageInfo(globalOpts.profile, globalOpts.headless, pageName, globalOpts.window, globalOpts.device)
+	sessionInfo, err := ensurePageInfoForCommand(pageName)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -62,6 +63,45 @@ func verifyReopenedPage(pageName string, expected devbrowser.PageSessionInfo, pa
 	return nil
 }
 
+func ensurePageInfoForCommand(pageName string) (devbrowser.PageSessionInfo, error) {
+	result, err := ensureDaemonForCommand()
+	if err != nil {
+		return devbrowser.PageSessionInfo{}, err
+	}
+	base := result.BaseURL
+	if strings.TrimSpace(base) == "" {
+		base = devbrowser.DaemonBaseURL(globalOpts.profile)
+	}
+	if base == "" {
+		return devbrowser.PageSessionInfo{}, errors.New("daemon state missing after start")
+	}
+	data, err := devbrowser.HTTPJSON("POST", base+"/pages", map[string]any{"name": pageName}, 10*time.Second)
+	if err != nil {
+		return devbrowser.PageSessionInfo{}, err
+	}
+	ws, _ := data["wsEndpoint"].(string)
+	tid, _ := data["targetId"].(string)
+	if strings.TrimSpace(ws) == "" {
+		return devbrowser.PageSessionInfo{}, errors.New("daemon did not return wsEndpoint")
+	}
+	if strings.TrimSpace(tid) == "" {
+		return devbrowser.PageSessionInfo{}, errors.New("daemon did not return targetId")
+	}
+	info := devbrowser.PageSessionInfo{
+		WSEndpoint: ws,
+		PageIdentity: devbrowser.PageIdentity{
+			TargetID: tid,
+		},
+	}
+	if pageURL, _ := data["url"].(string); strings.TrimSpace(pageURL) != "" {
+		info.URL = pageURL
+	}
+	if title, _ := data["title"].(string); strings.TrimSpace(title) != "" {
+		info.Title = title
+	}
+	return info, nil
+}
+
 func expectedPageWasLoaded(info devbrowser.PageSessionInfo) bool {
 	return !isBlankPageURL(info.URL) || strings.TrimSpace(info.Title) != ""
 }
@@ -76,14 +116,99 @@ func isBlankPageURL(raw string) bool {
 }
 
 func startDaemonIfNeeded() (string, error) {
-	if err := devbrowser.StartDaemon(globalOpts.profile, globalOpts.headless, globalOpts.window, globalOpts.device); err != nil {
+	result, err := ensureDaemonForCommand()
+	if err != nil {
 		return "", err
 	}
-	base := devbrowser.DaemonBaseURL(globalOpts.profile)
+	base := result.BaseURL
+	if base == "" {
+		base = devbrowser.DaemonBaseURL(globalOpts.profile)
+	}
 	if base == "" {
 		return "", errors.New("daemon state missing after start")
 	}
 	return base, nil
+}
+
+func ensureDaemonForCommand() (devbrowser.DaemonStartResult, error) {
+	headless, window, device, err := desiredDaemonSettings()
+	if err != nil {
+		return devbrowser.DaemonStartResult{}, err
+	}
+	result, err := devbrowser.EnsureDaemon(globalOpts.profile, headless, window, device)
+	if err != nil {
+		return devbrowser.DaemonStartResult{}, err
+	}
+	announceDaemonAction(result)
+	return result, nil
+}
+
+func desiredDaemonSettings() (bool, *devbrowser.WindowSize, string, error) {
+	headless := globalOpts.headless
+	window := cloneCLIWindow(globalOpts.window)
+	device := strings.TrimSpace(globalOpts.device)
+
+	health, err := devbrowser.ReadDaemonHealth(globalOpts.profile)
+	if err != nil {
+		return false, nil, "", err
+	}
+	if health == nil {
+		return headless, window, device, nil
+	}
+
+	if !globalOpts.headlessSet {
+		headless = health.Context.Headless
+	}
+	if !globalOpts.deviceSet && !globalOpts.windowSet {
+		device = strings.TrimSpace(health.Context.Device)
+		if device != "" {
+			window = nil
+		} else {
+			window = cloneCLIWindow(health.Context.Window)
+		}
+	}
+
+	if window != nil && device != "" {
+		return false, nil, "", fmt.Errorf("use either --window-size/--window-scale or --device")
+	}
+	return headless, window, device, nil
+}
+
+func announceDaemonAction(result devbrowser.DaemonStartResult) {
+	switch result.Action {
+	case devbrowser.DaemonActionStarted:
+		fmt.Fprintf(os.Stderr, "profile %s started with %s\n", globalOpts.profile, contextSummary(result.Context))
+	case devbrowser.DaemonActionReused:
+		fmt.Fprintf(os.Stderr, "profile %s reused with %s\n", globalOpts.profile, contextSummary(result.Context))
+	case devbrowser.DaemonActionReconfigured:
+		reason := strings.TrimSpace(result.Reason)
+		if reason == "" {
+			reason = contextSummary(result.Context)
+		}
+		fmt.Fprintf(os.Stderr, "profile %s restarted to apply %s\n", globalOpts.profile, reason)
+	}
+}
+
+func contextSummary(settings devbrowser.BrowserContextSettings) string {
+	parts := []string{fmt.Sprintf("headless=%t", settings.Headless)}
+	if device := strings.TrimSpace(settings.Device); device != "" {
+		parts = append(parts, fmt.Sprintf("device=%s", device))
+	}
+	if settings.Window != nil {
+		parts = append(parts, fmt.Sprintf("window=%dx%d", settings.Window.Width, settings.Window.Height))
+	}
+	if settings.Viewport != nil {
+		parts = append(parts, fmt.Sprintf("viewport=%dx%d", settings.Viewport.Width, settings.Viewport.Height))
+	}
+	return strings.Join(parts, " ")
+}
+
+func cloneCLIWindow(src *devbrowser.WindowSize) *devbrowser.WindowSize {
+	if src == nil {
+		return nil
+	}
+	copy := *src
+	return &copy
 }
 
 func deletePage(name string) error {

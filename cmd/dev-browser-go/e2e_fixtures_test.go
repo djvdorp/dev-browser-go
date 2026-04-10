@@ -16,6 +16,7 @@ func startE2ETestServer(t *testing.T) string {
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>dev-browser-go e2e</title>
   <style>
     html, body {

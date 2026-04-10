@@ -38,3 +38,20 @@ func TestWriteOutputHTMLMissing(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestEffectiveContextMatchesRequested(t *testing.T) {
+	current := BrowserContextSettings{
+		Headless: true,
+		Device:   "iPhone 13",
+		Window:   &WindowSize{Width: 390, Height: 844},
+	}
+	requested := normalizeContextRequest(true, nil, "iphone 13")
+	if !effectiveContextMatches(current, requested) {
+		t.Fatalf("expected contexts to match: current=%+v requested=%+v", current, requested)
+	}
+
+	requested = normalizeContextRequest(true, &WindowSize{Width: 1280, Height: 800}, "")
+	if effectiveContextMatches(current, requested) {
+		t.Fatalf("expected window mismatch to fail: current=%+v requested=%+v", current, requested)
+	}
+}

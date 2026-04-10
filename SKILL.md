@@ -316,7 +316,7 @@ dev-browser-go devices
 dev-browser-go --device "Galaxy S9+" goto https://example.com
 ```
 Do not combine `--device` with `--window-size` or `--window-scale`.
-Note: device/viewport flags apply when the daemon starts. Stop the daemon to switch.
+If a running profile is reused with different device/viewport/headless settings, `dev-browser-go` recreates the browser context for that profile and restores named page URLs so later commands do not silently reuse stale viewport/device state.
 
 Recommended device choices:
 - `Galaxy S9+` as the default Samsung/mobile example; it is the newest Galaxy profile currently available here

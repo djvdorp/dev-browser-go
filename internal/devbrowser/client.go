@@ -15,13 +15,15 @@ import (
 )
 
 type DaemonState struct {
-	PID        int    `json:"pid"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Profile    string `json:"profile"`
-	CDPPort    int    `json:"cdpPort"`
-	WSEndpoint string `json:"wsEndpoint"`
-	Version    string `json:"version"`
+	PID        int                    `json:"pid"`
+	Host       string                 `json:"host"`
+	Port       int                    `json:"port"`
+	Profile    string                 `json:"profile"`
+	CDPPort    int                    `json:"cdpPort"`
+	WSEndpoint string                 `json:"wsEndpoint"`
+	Version    string                 `json:"version"`
+	Context    BrowserContextSettings `json:"context"`
+	PageURL    string                 `json:"pageURL,omitempty"`
 }
 
 type PageSessionInfo struct {
@@ -89,82 +91,112 @@ func HTTPJSON(method string, url string, body map[string]any, timeout time.Durat
 }
 
 func IsDaemonHealthy(profile string) bool {
-	base := DaemonBaseURL(profile)
-	if base == "" {
-		return false
-	}
-	data, err := HTTPJSON(http.MethodGet, base+"/health", nil, 1500*time.Millisecond)
-	if err != nil {
-		return false
-	}
-	ok, _ := data["ok"].(bool)
-	return ok
+	health, err := ReadDaemonHealth(profile)
+	return err == nil && health != nil && health.OK
 }
 
-func StartDaemon(profile string, headless bool, window *WindowSize, device string) error {
-	if IsDaemonHealthy(profile) {
-		// If daemon is healthy but version is stale, restart it so embedded assets (like harness init)
-		// are applied predictably.
-		if st, err := ReadState(profile); err == nil && st != nil {
-			if strings.TrimSpace(st.Version) == "" || strings.TrimSpace(st.Version) != DaemonVersion() {
-				if _, err := StopDaemon(profile); err != nil {
-					return fmt.Errorf("failed to stop existing dev-browser daemon (profile=%s): %w", profile, err)
-				}
-			} else {
-				return nil
-			}
-		} else {
-			return nil
-		}
-	}
+func EnsureDaemon(profile string, headless bool, window *WindowSize, device string) (DaemonStartResult, error) {
 	if window != nil && strings.TrimSpace(device) != "" {
-		return errors.New("use either --window-size/--window-scale or --device")
+		return DaemonStartResult{}, errors.New("use either --window-size/--window-scale or --device")
+	}
+
+	requested := normalizeContextRequest(headless, window, device)
+	if health, err := ReadDaemonHealth(profile); err == nil && health != nil && health.OK {
+		baseURL := fmt.Sprintf("http://%s:%d", health.Host, health.Port)
+		if strings.TrimSpace(health.Version) == "" || strings.TrimSpace(health.Version) != DaemonVersion() {
+			if _, err := StopDaemon(profile); err != nil {
+				return DaemonStartResult{}, fmt.Errorf("failed to stop existing dev-browser daemon (profile=%s): %w", profile, err)
+			}
+		} else if effectiveContextMatches(health.Context, requested) {
+			return DaemonStartResult{
+				Action:     DaemonActionReused,
+				Context:    health.Context,
+				BaseURL:    baseURL,
+				Profile:    profile,
+				PageURL:    health.PageURL,
+				WSEndpoint: health.WSEndpoint,
+			}, nil
+		} else {
+			data, err := HTTPJSON(http.MethodPost, baseURL+"/reconfigure", map[string]any{
+				"headless": requested.Headless,
+				"window":   requested.Window,
+				"device":   requested.Device,
+			}, 90*time.Second)
+			if err != nil {
+				return DaemonStartResult{}, err
+			}
+			updated := decodeDaemonHealthMap(data)
+			if !updated.OK {
+				return DaemonStartResult{}, fmt.Errorf("reconfigure daemon: response not ok")
+			}
+			return DaemonStartResult{
+				Action:     DaemonActionReconfigured,
+				Reason:     describeContextDiff(health.Context, requested),
+				Context:    updated.Context,
+				BaseURL:    baseURL,
+				Profile:    profile,
+				PageURL:    updated.PageURL,
+				WSEndpoint: updated.WSEndpoint,
+			}, nil
+		}
 	}
 
 	dir := StateDir(profile)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
+		return DaemonStartResult{}, err
 	}
 	logPath := filepath.Join(dir, "daemon.log")
 
 	exe, err := os.Executable()
 	if err != nil {
-		return err
+		return DaemonStartResult{}, err
 	}
 
 	args := []string{"--daemon", "--profile", profile}
-	if headless {
+	if requested.Headless {
 		args = append(args, "--headless")
 	}
-	if window != nil {
-		args = append(args, "--window-size", fmt.Sprintf("%dx%d", window.Width, window.Height))
+	if requested.Window != nil {
+		args = append(args, "--window-size", fmt.Sprintf("%dx%d", requested.Window.Width, requested.Window.Height))
 	}
-	if strings.TrimSpace(device) != "" {
-		args = append(args, "--device", device)
+	if strings.TrimSpace(requested.Device) != "" {
+		args = append(args, "--device", requested.Device)
 	}
 
 	cmd := exec.Command(exe, args...)
 	configureDaemonProcess(cmd)
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		return err
+		return DaemonStartResult{}, err
 	}
 	defer logFile.Close()
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Stdin = nil
 	if err := cmd.Start(); err != nil {
-		return err
+		return DaemonStartResult{}, err
 	}
 
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
-		if IsDaemonHealthy(profile) {
-			return nil
+		if health, err := ReadDaemonHealth(profile); err == nil && health != nil && health.OK {
+			return DaemonStartResult{
+				Action:     DaemonActionStarted,
+				Context:    health.Context,
+				BaseURL:    fmt.Sprintf("http://%s:%d", health.Host, health.Port),
+				Profile:    profile,
+				PageURL:    health.PageURL,
+				WSEndpoint: health.WSEndpoint,
+			}, nil
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return fmt.Errorf("timed out waiting for dev-browser daemon (profile=%s). See %s", profile, logPath)
+	return DaemonStartResult{}, fmt.Errorf("timed out waiting for dev-browser daemon (profile=%s). See %s", profile, logPath)
+}
+
+func StartDaemon(profile string, headless bool, window *WindowSize, device string) error {
+	_, err := EnsureDaemon(profile, headless, window, device)
+	return err
 }
 
 func StopDaemon(profile string) (bool, error) {
@@ -202,10 +234,14 @@ func EnsurePage(profile string, headless bool, page string, window *WindowSize, 
 }
 
 func EnsurePageInfo(profile string, headless bool, page string, window *WindowSize, device string) (PageSessionInfo, error) {
-	if err := StartDaemon(profile, headless, window, device); err != nil {
+	result, err := EnsureDaemon(profile, headless, window, device)
+	if err != nil {
 		return PageSessionInfo{}, err
 	}
-	base := DaemonBaseURL(profile)
+	base := result.BaseURL
+	if strings.TrimSpace(base) == "" {
+		base = DaemonBaseURL(profile)
+	}
 	if base == "" {
 		return PageSessionInfo{}, errors.New("daemon state missing after start")
 	}
@@ -234,6 +270,92 @@ func EnsurePageInfo(profile string, headless bool, page string, window *WindowSi
 		info.Title = title
 	}
 	return info, nil
+}
+
+func ReadDaemonHealth(profile string) (*DaemonHealth, error) {
+	base := DaemonBaseURL(profile)
+	if base == "" {
+		return nil, nil
+	}
+	data, err := HTTPJSON(http.MethodGet, base+"/health", nil, 1500*time.Millisecond)
+	if err != nil {
+		return nil, err
+	}
+	health := decodeDaemonHealthMap(data)
+	if !health.OK {
+		return nil, nil
+	}
+	return &health, nil
+}
+
+func decodeDaemonHealthMap(data map[string]any) DaemonHealth {
+	health := DaemonHealth{}
+	if ok, _ := data["ok"].(bool); ok {
+		health.OK = true
+	}
+	health.PID = intValue(data["pid"])
+	health.Host, _ = data["host"].(string)
+	health.Port = intValue(data["port"])
+	health.Profile, _ = data["profile"].(string)
+	health.CDPPort = intValue(data["cdpPort"])
+	health.WSEndpoint, _ = data["wsEndpoint"].(string)
+	health.Version, _ = data["version"].(string)
+	health.PageURL, _ = data["pageURL"].(string)
+	if raw, ok := data["context"].(map[string]any); ok {
+		health.Context = decodeBrowserContextSettings(raw)
+	}
+	return health
+}
+
+func decodeBrowserContextSettings(data map[string]any) BrowserContextSettings {
+	settings := BrowserContextSettings{}
+	if headless, ok := data["headless"].(bool); ok {
+		settings.Headless = headless
+	}
+	settings.Device, _ = data["device"].(string)
+	if raw, ok := data["window"].(map[string]any); ok {
+		settings.Window = decodeWindowSizeMap(raw)
+	}
+	if raw, ok := data["viewport"].(map[string]any); ok {
+		settings.Viewport = decodeWindowSizeMap(raw)
+	}
+	if raw, ok := data["screen"].(map[string]any); ok {
+		settings.Screen = decodeWindowSizeMap(raw)
+	}
+	switch scale := data["deviceScaleFactor"].(type) {
+	case float64:
+		settings.DeviceScaleFactor = scale
+	case int:
+		settings.DeviceScaleFactor = float64(scale)
+	}
+	if mobile, ok := data["isMobile"].(bool); ok {
+		settings.IsMobile = mobile
+	}
+	if touch, ok := data["hasTouch"].(bool); ok {
+		settings.HasTouch = touch
+	}
+	settings.UserAgent, _ = data["userAgent"].(string)
+	return settings
+}
+
+func decodeWindowSizeMap(data map[string]any) *WindowSize {
+	width := intValue(data["width"])
+	height := intValue(data["height"])
+	if width <= 0 || height <= 0 {
+		return nil
+	}
+	return &WindowSize{Width: width, Height: height}
+}
+
+func intValue(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	default:
+		return 0
+	}
 }
 
 func WriteOutput(profile string, mode string, result any, outPath string) (string, error) {

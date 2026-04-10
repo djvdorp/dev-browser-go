@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -35,6 +36,7 @@ type BrowserHost struct {
 	registry map[string]pageHolder
 	userData string
 	logs     *consoleStore
+	settings BrowserContextSettings
 }
 
 type pageHolder struct {
@@ -45,20 +47,17 @@ type pageHolder struct {
 
 func NewBrowserHost(profile string, headless bool, cdpPort int, window *WindowSize, device string) *BrowserHost {
 	stateBase := filepath.Join(PlatformStateDir(), cacheSubdir, profile)
-	deviceName := strings.TrimSpace(device)
-	if window == nil && deviceName == "" {
-		defaultSize := DefaultWindowSize()
-		window = &defaultSize
-	}
+	settings := normalizeContextRequest(headless, window, device)
 	return &BrowserHost{
 		profile:  profile,
-		headless: headless,
+		headless: settings.Headless,
 		cdpPort:  cdpPort,
-		window:   window,
-		device:   deviceName,
+		window:   cloneWindowSize(settings.Window),
+		device:   settings.Device,
 		registry: make(map[string]pageHolder),
 		userData: filepath.Join(stateBase, "chromium-profile"),
 		logs:     newConsoleStore(0),
+		settings: settings,
 	}
 }
 
@@ -80,7 +79,10 @@ func (b *BrowserHost) Start() error {
 func (b *BrowserHost) Stop() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.stopLocked()
+}
 
+func (b *BrowserHost) stopLocked() {
 	for name, holder := range b.registry {
 		if holder.page != nil && !holder.page.IsClosed() {
 			_ = holder.page.Close()
@@ -101,6 +103,54 @@ func (b *BrowserHost) Stop() {
 	if b.logs != nil {
 		b.logs.clearAll()
 	}
+}
+
+func (b *BrowserHost) ContextSettings() BrowserContextSettings {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return cloneContextSettings(b.settings)
+}
+
+func (b *BrowserHost) PrimaryPageURL() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if holder, ok := b.registry["main"]; ok && holder.page != nil && !holder.page.IsClosed() {
+		return holder.page.URL()
+	}
+	names := make([]string, 0, len(b.registry))
+	for name, holder := range b.registry {
+		if holder.page != nil && !holder.page.IsClosed() {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		return b.registry[name].page.URL()
+	}
+	return ""
+}
+
+func (b *BrowserHost) Reconfigure(headless bool, window *WindowSize, device string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	requested := normalizeContextRequest(headless, window, device)
+	if effectiveContextMatches(b.settings, requested) {
+		return nil
+	}
+
+	restore := b.capturePagesLocked()
+	b.stopLocked()
+
+	b.headless = requested.Headless
+	b.window = cloneWindowSize(requested.Window)
+	b.device = requested.Device
+	b.settings = requested
+
+	if err := b.startLocked(); err != nil {
+		return err
+	}
+	return b.restorePagesLocked(restore)
 }
 
 func (b *BrowserHost) ListPages() []string {
@@ -196,7 +246,7 @@ func (b *BrowserHost) startLocked() error {
 		return fmt.Errorf("start playwright: %w", err)
 	}
 
-	device, err := resolveDeviceDescriptor(pw, b.device)
+	deviceName, device, err := resolveDeviceProfile(pw, b.device)
 	if err != nil {
 		pw.Stop()
 		return err
@@ -264,6 +314,7 @@ func (b *BrowserHost) startLocked() error {
 	b.pw = pw
 	b.context = context
 	b.ws = ws
+	b.settings = browserContextSettingsFromLaunch(b.headless, deviceName, window, &opts)
 	b.registry["main"] = pageHolder{page: mainPage, targetID: tid}
 	b.attachConsoleLocked("main", mainPage)
 
@@ -271,6 +322,137 @@ func (b *BrowserHost) startLocked() error {
 		_ = pg.Close()
 	}
 	return nil
+}
+
+type pageRestoreState struct {
+	Name string
+	URL  string
+}
+
+func (b *BrowserHost) capturePagesLocked() []pageRestoreState {
+	names := make([]string, 0, len(b.registry))
+	for name, holder := range b.registry {
+		if holder.page != nil && !holder.page.IsClosed() {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	restore := make([]pageRestoreState, 0, len(names))
+	for _, name := range names {
+		restore = append(restore, pageRestoreState{
+			Name: name,
+			URL:  b.registry[name].page.URL(),
+		})
+	}
+	return restore
+}
+
+func (b *BrowserHost) restorePagesLocked(pages []pageRestoreState) error {
+	if len(pages) == 0 {
+		return nil
+	}
+
+	mainHolder, hasMain := b.registry["main"]
+	restoredMain := false
+	for _, state := range pages {
+		if state.Name != "main" {
+			continue
+		}
+		if hasMain && mainHolder.page != nil && !mainHolder.page.IsClosed() {
+			if err := navigatePageForRestore(mainHolder.page, state.URL); err != nil {
+				return fmt.Errorf("restore page %q: %w", state.Name, err)
+			}
+			identity, err := describePageInContext(b.context, mainHolder.page)
+			if err != nil {
+				return fmt.Errorf("restore page %q: %w", state.Name, err)
+			}
+			b.registry["main"] = pageHolder{page: mainHolder.page, targetID: identity.TargetID}
+			b.attachConsoleLocked("main", mainHolder.page)
+			restoredMain = true
+		}
+		break
+	}
+
+	for _, state := range pages {
+		if state.Name == "main" {
+			continue
+		}
+		page, err := b.context.NewPage()
+		if err != nil {
+			return fmt.Errorf("restore page %q: %w", state.Name, err)
+		}
+		if err := navigatePageForRestore(page, state.URL); err != nil {
+			_ = page.Close()
+			return fmt.Errorf("restore page %q: %w", state.Name, err)
+		}
+		identity, err := describePageInContext(b.context, page)
+		if err != nil {
+			_ = page.Close()
+			return fmt.Errorf("restore page %q: %w", state.Name, err)
+		}
+		b.registry[state.Name] = pageHolder{page: page, targetID: identity.TargetID}
+		b.attachConsoleLocked(state.Name, page)
+	}
+
+	if !restoredMain {
+		if main, ok := b.registry["main"]; ok && main.page != nil && !main.page.IsClosed() {
+			if len(pages) == 1 && pages[0].Name != "main" {
+				_ = main.page.Close()
+				delete(b.registry, "main")
+			}
+		}
+	}
+
+	return nil
+}
+
+func navigatePageForRestore(page playwright.Page, rawURL string) error {
+	url := strings.TrimSpace(rawURL)
+	if url == "" || url == "about:blank" {
+		return nil
+	}
+	_, err := page.Goto(url, playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+		Timeout:   playwright.Float(45_000),
+	})
+	return err
+}
+
+func cloneContextSettings(src BrowserContextSettings) BrowserContextSettings {
+	src.Window = cloneWindowSize(src.Window)
+	src.Viewport = cloneWindowSize(src.Viewport)
+	src.Screen = cloneWindowSize(src.Screen)
+	return src
+}
+
+func browserContextSettingsFromLaunch(headless bool, device string, window *WindowSize, opts *playwright.BrowserTypeLaunchPersistentContextOptions) BrowserContextSettings {
+	settings := BrowserContextSettings{
+		Headless: headless,
+		Device:   strings.TrimSpace(device),
+		Window:   cloneWindowSize(window),
+	}
+	if opts == nil {
+		return settings
+	}
+	if opts.Viewport != nil {
+		settings.Viewport = &WindowSize{Width: opts.Viewport.Width, Height: opts.Viewport.Height}
+	}
+	if opts.Screen != nil {
+		settings.Screen = &WindowSize{Width: opts.Screen.Width, Height: opts.Screen.Height}
+	}
+	if opts.DeviceScaleFactor != nil {
+		settings.DeviceScaleFactor = *opts.DeviceScaleFactor
+	}
+	if opts.IsMobile != nil {
+		settings.IsMobile = *opts.IsMobile
+	}
+	if opts.HasTouch != nil {
+		settings.HasTouch = *opts.HasTouch
+	}
+	if opts.UserAgent != nil {
+		settings.UserAgent = *opts.UserAgent
+	}
+	return settings
 }
 
 func (b *BrowserHost) attachConsoleLocked(name string, page playwright.Page) {

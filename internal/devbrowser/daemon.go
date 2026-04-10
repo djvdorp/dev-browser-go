@@ -58,11 +58,6 @@ func ServeDaemon(opts DaemonOptions) error {
 		return err
 	}
 	defer host.Stop()
-	ws, err := host.WSEndpoint()
-	if err != nil {
-		return err
-	}
-
 	stateFile := opts.StateFile
 	if strings.TrimSpace(stateFile) == "" {
 		stateFile = filepath.Join(StateDir(profile), "daemon.json")
@@ -75,6 +70,7 @@ func ServeDaemon(opts DaemonOptions) error {
 	d := &Daemon{opts: opts, host: host, logger: logger}
 
 	mux.HandleFunc("/health", d.handleHealth)
+	mux.HandleFunc("/reconfigure", d.handleReconfigure)
 	mux.HandleFunc("/", d.handleRoot)
 	mux.HandleFunc("/pages", d.handlePages)
 	mux.HandleFunc("/pages/", d.handlePageSubresource)
@@ -98,15 +94,11 @@ func ServeDaemon(opts DaemonOptions) error {
 		return err
 	}
 
-	if err := writeStateFile(stateFile, map[string]any{
-		"pid":        os.Getpid(),
-		"host":       opts.Host,
-		"port":       ln.Addr().(*net.TCPAddr).Port,
-		"profile":    profile,
-		"cdpPort":    cdpPort,
-		"wsEndpoint": ws,
-		"version":    DaemonVersion(),
-	}); err != nil {
+	d.opts.Profile = profile
+	d.opts.Port = ln.Addr().(*net.TCPAddr).Port
+	d.opts.CDPPort = cdpPort
+	d.opts.StateFile = stateFile
+	if err := d.writeCurrentState(); err != nil {
 		ln.Close()
 		return err
 	}
@@ -120,14 +112,41 @@ func ServeDaemon(opts DaemonOptions) error {
 }
 
 func (d *Daemon) handleHealth(w http.ResponseWriter, r *http.Request) {
-	ws, _ := d.host.WSEndpoint()
-	d.writeJSON(w, http.StatusOK, map[string]any{
-		"ok":         true,
-		"pid":        os.Getpid(),
-		"profile":    d.opts.Profile,
-		"wsEndpoint": ws,
-		"version":    DaemonVersion(),
-	})
+	d.writeJSON(w, http.StatusOK, d.healthPayload())
+}
+
+func (d *Daemon) handleReconfigure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		d.writeJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "not found"})
+		return
+	}
+	var body struct {
+		Headless bool        `json:"headless"`
+		Window   *WindowSize `json:"window"`
+		Device   string      `json:"device"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		d.writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid json"})
+		return
+	}
+	if body.Window != nil && strings.TrimSpace(body.Device) != "" {
+		d.writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "use either window or device"})
+		return
+	}
+	if err := d.host.Reconfigure(body.Headless, body.Window, body.Device); err != nil {
+		d.writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	d.opts.Headless = body.Headless
+	d.opts.Window = cloneWindowSize(body.Window)
+	d.opts.Device = strings.TrimSpace(body.Device)
+	if err := d.writeCurrentState(); err != nil {
+		d.writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	payload := d.healthPayload()
+	payload["action"] = string(DaemonActionReconfigured)
+	d.writeJSON(w, http.StatusOK, payload)
 }
 
 func (d *Daemon) handleRoot(w http.ResponseWriter, r *http.Request) {
@@ -287,6 +306,41 @@ func (d *Daemon) writeJSON(w http.ResponseWriter, status int, payload map[string
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
+func (d *Daemon) healthPayload() map[string]any {
+	ws, _ := d.host.WSEndpoint()
+	context := d.host.ContextSettings()
+	return map[string]any{
+		"ok":         true,
+		"pid":        os.Getpid(),
+		"host":       d.opts.Host,
+		"port":       d.opts.Port,
+		"profile":    d.opts.Profile,
+		"cdpPort":    d.opts.CDPPort,
+		"wsEndpoint": ws,
+		"version":    DaemonVersion(),
+		"context":    context,
+		"pageURL":    d.host.PrimaryPageURL(),
+	}
+}
+
+func (d *Daemon) writeCurrentState() error {
+	ws, err := d.host.WSEndpoint()
+	if err != nil {
+		return err
+	}
+	return writeStateFile(d.opts.StateFile, DaemonState{
+		PID:        os.Getpid(),
+		Host:       d.opts.Host,
+		Port:       d.opts.Port,
+		Profile:    d.opts.Profile,
+		CDPPort:    d.opts.CDPPort,
+		WSEndpoint: ws,
+		Version:    DaemonVersion(),
+		Context:    d.host.ContextSettings(),
+		PageURL:    d.host.PrimaryPageURL(),
+	})
+}
+
 func chooseFreePort() (int, error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -296,7 +350,7 @@ func chooseFreePort() (int, error) {
 	return ln.Addr().(*net.TCPAddr).Port, nil
 }
 
-func writeStateFile(path string, data map[string]any) error {
+func writeStateFile(path string, data any) error {
 	tmp := path + ".tmp"
 	f, err := os.Create(tmp)
 	if err != nil {
