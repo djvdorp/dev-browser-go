@@ -95,6 +95,8 @@ dev-browser-go html-validate --url http://localhost:5173 --output json
 
 Note: `--output` and `--out` control the command result. For commands like
 `save-html`, use `--path` for the artifact file itself.
+These global flags are honored by daemon-aware commands such as `status`,
+`start`, `goto`, `js-eval`, `screenshot`, and `list-pages`.
 
 ### Environment Variables
 
@@ -124,6 +126,13 @@ dev-browser-go devices
 ```
 
 When a running profile is reused with different `--device`, `--window-size`, `--window-scale`, or headless/headed settings, `dev-browser-go` now recreates the browser context for that profile and restores named page URLs so the requested settings actually take effect.
+
+Daemon-aware commands also print an explicit reuse/restart message on stderr:
+
+```bash
+profile mobile reused with headless=true device=iPhone 13 window=390x664 viewport=390x664
+profile mobile restarted to apply device=iPhone 13
+```
 
 Recommended profiles for this repo:
 
@@ -171,7 +180,7 @@ Recommended profiles for this repo:
 | `close-page <name>` | Close named page |
 | `call <tool>` | Generic tool call with JSON args |
 | `actions` | Batch tool calls from JSON |
-| `status` | Daemon status |
+| `status` | Daemon status with effective context + page URL |
 | `start` | Start daemon |
 | `stop` | Stop daemon |
 | `diagnose` | One-call “what’s broken?” report (structured JSON, artifacts) |
@@ -180,6 +189,28 @@ Recommended profiles for this repo:
 | `loop` | Run diagnose+assert once or in watch mode |
 
 Run `dev-browser-go <command> --help` for command-specific options.
+
+### Status
+
+`status` has no command-specific flags. It uses the global flags above,
+especially `--profile`, to inspect the selected daemon profile.
+
+Example:
+
+```bash
+dev-browser-go --profile mobile status
+# ok profile=mobile url=http://127.0.0.1:54664 headless=true device=iPhone 13 window=390x664 viewport=390x664 page=https://example.com/
+```
+
+The `status` output includes:
+
+- profile name
+- daemon base URL
+- effective headless/headed state
+- effective device name when set
+- effective window size
+- effective viewport size
+- current page URL
 
 ### JavaScript Evaluation
 

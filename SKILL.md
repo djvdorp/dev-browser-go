@@ -245,6 +245,10 @@ dev-browser-go stop                          # Stop daemon (closes browser)
 dev-browser-go start --headless              # Start in headless mode
 ```
 
+`status` has no command-specific flags. Use the normal global flags,
+especially `--profile`, to inspect a running daemon profile. The output now
+includes the effective device/window/viewport and current page URL.
+
 ### Diagnostics & CI Gates
 ```bash
 # Structured diagnostic report
@@ -317,6 +321,8 @@ dev-browser-go --device "Galaxy S9+" goto https://example.com
 ```
 Do not combine `--device` with `--window-size` or `--window-scale`.
 If a running profile is reused with different device/viewport/headless settings, `dev-browser-go` recreates the browser context for that profile and restores named page URLs so later commands do not silently reuse stale viewport/device state.
+Daemon-aware commands print explicit reuse/restart messages on stderr so the
+caller can tell whether the existing profile was reused or recreated.
 
 Recommended device choices:
 - `Galaxy S9+` as the default Samsung/mobile example; it is the newest Galaxy profile currently available here
